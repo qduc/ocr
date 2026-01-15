@@ -378,19 +378,19 @@ The implementation uses TypeScript for type safety and follows the Strategy Patt
     - Test persistence to localStorage
     - _Requirements: 9.1, 9.2, 9.4, 9.5_
 
-- [ ] 18. Register Transformers engine and update UI
-  - [ ] 18.1 Register TransformersEngine with factory
+- [x] 18. Register Transformers engine and update UI
+  - [x] 18.1 Register TransformersEngine with factory
     - Add registration in main application
     - Update ENGINE_CONFIGS with transformers config
     - _Requirements: 2.2, 8.1_
   
-  - [ ] 18.2 Update UI to show engine selection
+  - [x] 18.2 Update UI to show engine selection
     - Display dropdown when multiple engines available
     - Show engine-specific information
     - Update loading messages per engine
     - _Requirements: 9.1, 9.5_
   
-  - [ ] 18.3 Write integration tests for multi-engine support
+  - [x] 18.3 Write integration tests for multi-engine support
     - Test switching between Tesseract and Transformers
     - Test processing with both engines
     - Test memory cleanup during switches
