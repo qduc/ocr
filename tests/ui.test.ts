@@ -56,6 +56,16 @@ const attachFile = (input: HTMLInputElement, file: File) => {
   input.dispatchEvent(new Event('change'));
 };
 
+const registerTestEngine = (factory: { register: (id: string, creator: () => unknown) => void }) => {
+  factory.register('tesseract', () => ({
+    id: 'tesseract',
+    isLoading: false,
+    load: async () => {},
+    process: async () => '',
+    destroy: async () => {},
+  }));
+};
+
 describe('UI property tests', () => {
   it('propagates loading state updates to the UI', () => {
     fc.assert(
@@ -69,7 +79,8 @@ describe('UI property tests', () => {
           featureDetector: createSupportedDetector(),
           imageProcessor: createImageProcessorStub(),
           ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
-          registerEngines: (_factory, setStage) => {
+          registerEngines: (factory, setStage) => {
+            registerTestEngine(factory);
             setStage('loading', 'Loading OCR engine', progress);
           },
         });
@@ -100,7 +111,7 @@ describe('UI property tests', () => {
           featureDetector: createSupportedDetector(),
           imageProcessor,
           ocrManager,
-          registerEngines: () => {},
+          registerEngines: (factory) => registerTestEngine(factory),
         });
 
         const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
@@ -131,7 +142,7 @@ describe('UI integration tests', () => {
       featureDetector: createSupportedDetector(),
       imageProcessor,
       ocrManager,
-      registerEngines: () => {},
+      registerEngines: (factory) => registerTestEngine(factory),
     });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
@@ -162,7 +173,7 @@ describe('UI integration tests', () => {
       featureDetector: createSupportedDetector(),
       imageProcessor,
       ocrManager,
-      registerEngines: () => {},
+      registerEngines: (factory) => registerTestEngine(factory),
     });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
@@ -197,7 +208,7 @@ describe('UI integration tests', () => {
       featureDetector: createSupportedDetector(),
       imageProcessor,
       ocrManager,
-      registerEngines: () => {},
+      registerEngines: (factory) => registerTestEngine(factory),
     });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
@@ -206,7 +217,7 @@ describe('UI integration tests', () => {
     const runPromise = app.runOcr();
     await Promise.resolve();
 
-    expect(app.elements.statusText.textContent).toContain('Loading OCR engine');
+    expect(app.elements.statusText.textContent).toContain('Switching to');
     resolveEngine();
     await runPromise;
   });

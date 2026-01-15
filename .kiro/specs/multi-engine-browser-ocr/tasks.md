@@ -350,29 +350,29 @@ The implementation uses TypeScript for type safety and follows the Strategy Patt
     - Test destroy() cleanup
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 17. Implement engine selection UI
-  - [ ] 17.1 Create engine selection dropdown component
+- [x] 17. Implement engine selection UI
+  - [x] 17.1 Create engine selection dropdown component
     - Display available engines from factory
     - Show engine descriptions and capabilities
     - Handle engine selection event
     - _Requirements: 9.1, 9.5_
   
-  - [ ] 17.2 Implement engine switching logic
+  - [x] 17.2 Implement engine switching logic
     - Call OCRManager.setEngine() on selection
     - Update UI to reflect active engine
     - Handle switching during active processing
     - _Requirements: 9.2, 9.3_
   
-  - [ ] 17.3 Implement engine selection persistence
+  - [x] 17.3 Implement engine selection persistence
     - Save selection to localStorage
     - Restore selection on page load
     - _Requirements: 9.4_
   
-  - [ ] 17.4 Write property test for engine selection persistence
+  - [x] 17.4 Write property test for engine selection persistence
     - **Property 17: Engine Selection Persistence**
     - **Validates: Requirements 9.4**
   
-  - [ ] 17.5 Write unit tests for engine selection
+  - [x] 17.5 Write unit tests for engine selection
     - Test dropdown rendering with multiple engines
     - Test engine switching
     - Test persistence to localStorage

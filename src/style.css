@@ -166,6 +166,30 @@ p {
   border: 1px dashed rgba(59, 125, 107, 0.4);
 }
 
+.engine-select {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.engine-select label {
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.engine-select select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.95rem;
+}
+
+.engine-details {
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
 .file-meta {
   font-size: 0.9rem;
   color: var(--ink-2);

@@ -2,6 +2,7 @@ import { FeatureDetector } from '@/utils/feature-detector';
 import { EngineFactory } from '@/engines/engine-factory';
 import { OCRManager } from '@/ocr-manager';
 import { TesseractEngine } from '@/engines/tesseract-engine';
+import { TransformersEngine } from '@/engines/transformers-engine';
 import { ImageProcessor } from '@/utils/image-processor';
 import {
   createInvalidImageError,
@@ -11,6 +12,7 @@ import {
   logError,
 } from '@/utils/error-handling';
 import { OCRError } from '@/types/ocr-errors';
+import { ENGINE_CONFIGS } from '@/types/ocr-models';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
 
@@ -55,6 +57,11 @@ export const initApp = (options: AppOptions = {}) => {
         <section class="panel upload-panel">
           <h2>1. Choose an image</h2>
           <p class="panel-subtitle">JPEG, PNG, WebP, or BMP. We will preprocess for better accuracy.</p>
+          <div class="engine-select">
+            <label for="engine-select">OCR engine</label>
+            <select id="engine-select"></select>
+            <div id="engine-details" class="engine-details"></div>
+          </div>
           <div class="file-input">
             <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
             <div id="file-meta" class="file-meta">No file selected.</div>
@@ -85,6 +92,8 @@ export const initApp = (options: AppOptions = {}) => {
   const progressText = root.querySelector<HTMLDivElement>('#progress-text');
   const fileInput = root.querySelector<HTMLInputElement>('#file-input');
   const fileMeta = root.querySelector<HTMLDivElement>('#file-meta');
+  const engineSelect = root.querySelector<HTMLSelectElement>('#engine-select');
+  const engineDetails = root.querySelector<HTMLDivElement>('#engine-details');
   const runButton = root.querySelector<HTMLButtonElement>('#run-button');
   const output = root.querySelector<HTMLDivElement>('#output');
   const errorPanel = root.querySelector<HTMLDivElement>('#error-panel');
@@ -99,6 +108,8 @@ export const initApp = (options: AppOptions = {}) => {
     !progressText ||
     !fileInput ||
     !fileMeta ||
+    !engineSelect ||
+    !engineDetails ||
     !runButton ||
     !output ||
     !errorPanel ||
@@ -117,6 +128,8 @@ export const initApp = (options: AppOptions = {}) => {
   const ocrManager = options.ocrManager ?? new OCRManager(engineFactory);
   let selectedFile: File | null = null;
   let engineReady = false;
+  let selectedEngineId: string | null = null;
+  let activeEngineId: string | null = null;
 
   const setStage = (stage: Stage, message: string, progress: number = 0) => {
     statusCard.dataset.stage = stage;
@@ -145,6 +158,7 @@ export const initApp = (options: AppOptions = {}) => {
   const setBusy = (busy: boolean) => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
+    engineSelect.disabled = busy;
     runButton.textContent = busy ? 'Working…' : 'Extract text';
   };
 
@@ -155,6 +169,81 @@ export const initApp = (options: AppOptions = {}) => {
         setStage('loading', `Loading OCR engine: ${status}`, percent);
       });
     });
+    engineFactory.register('transformers', () => {
+      return new TransformersEngine({
+        webgpu: capabilities.webgpu,
+        onProgress: (status, progress) => {
+          const percent = Math.round((progress ?? 0) * 100);
+          setStage('loading', `Loading Transformers: ${status}`, percent);
+        },
+      });
+    });
+  };
+
+  const updateEngineDetails = (engineId: string) => {
+    const config = ENGINE_CONFIGS[engineId];
+    if (!config) {
+      engineDetails.textContent = 'Unknown engine configuration.';
+      return;
+    }
+
+    const gpuNote = config.requiresWebGPU && !capabilities.webgpu ? 'WebGPU not detected, CPU fallback in use.' : '';
+    engineDetails.textContent = `${config.description} • ${config.supportedLanguages.join(', ')}${gpuNote ? ` • ${gpuNote}` : ''}`;
+  };
+
+  const getStoredEngine = () => {
+    try {
+      return localStorage.getItem('ocr.engine');
+    } catch {
+      return null;
+    }
+  };
+
+  const setStoredEngine = (engineId: string) => {
+    try {
+      localStorage.setItem('ocr.engine', engineId);
+    } catch {
+      // Ignore storage failures in restricted contexts.
+    }
+  };
+
+  const populateEngines = () => {
+    const engines = engineFactory.getAvailableEngines();
+    engineSelect.innerHTML = '';
+    for (const engineId of engines) {
+      const option = document.createElement('option');
+      option.value = engineId;
+      option.textContent = ENGINE_CONFIGS[engineId]?.name ?? engineId;
+      engineSelect.append(option);
+    }
+
+    const preferred = getStoredEngine();
+    selectedEngineId = engines.includes(preferred ?? '') ? preferred : engines[0] ?? null;
+    if (selectedEngineId) {
+      engineSelect.value = selectedEngineId;
+      updateEngineDetails(selectedEngineId);
+    }
+  };
+
+  const switchEngine = async (engineId: string, manageBusy: boolean = true) => {
+    const engineName = ENGINE_CONFIGS[engineId]?.name ?? engineId;
+    setStage('loading', `Switching to ${engineName}...`, 0);
+    if (manageBusy) {
+      setBusy(true);
+    }
+    try {
+      await ocrManager.setEngine(engineId);
+      engineReady = true;
+      activeEngineId = engineId;
+      setStage('idle', `${engineName} ready`, 0);
+    } catch (error) {
+      logError(error);
+      setError(error);
+    } finally {
+      if (manageBusy) {
+        setBusy(false);
+      }
+    }
   };
 
   if (!capabilities.supported) {
@@ -167,6 +256,7 @@ export const initApp = (options: AppOptions = {}) => {
     } else {
       registerDefaultEngines();
     }
+    populateEngines();
     setStage('idle', 'Ready for upload', 0);
   }
 
@@ -178,6 +268,15 @@ export const initApp = (options: AppOptions = {}) => {
     output.textContent = selectedFile ? 'Image loaded. Click extract to run OCR.' : 'Upload an image to begin.';
   });
 
+  engineSelect.addEventListener('change', () => {
+    selectedEngineId = engineSelect.value;
+    engineReady = false;
+    activeEngineId = null;
+    setStoredEngine(selectedEngineId);
+    updateEngineDetails(selectedEngineId);
+    void switchEngine(selectedEngineId);
+  });
+
   const runOcr = async () => {
     clearError();
     if (!selectedFile) {
@@ -187,10 +286,16 @@ export const initApp = (options: AppOptions = {}) => {
 
     setBusy(true);
     try {
-      if (!engineReady) {
-        setStage('loading', 'Loading OCR engine...', 0);
-        await ocrManager.setEngine('tesseract');
-        engineReady = true;
+      if (!selectedEngineId) {
+        setError(createProcessingFailedError('No OCR engine selected.'));
+        return;
+      }
+
+      if (!engineReady || activeEngineId !== selectedEngineId) {
+        await switchEngine(selectedEngineId, false);
+        if (!engineReady || activeEngineId !== selectedEngineId) {
+          return;
+        }
       }
 
       setStage('processing', 'Processing image...', 100);
@@ -229,6 +334,8 @@ export const initApp = (options: AppOptions = {}) => {
     runOcr,
     elements: {
       fileInput,
+      engineSelect,
+      engineDetails,
       runButton,
       output,
       errorPanel,
