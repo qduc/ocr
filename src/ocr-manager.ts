@@ -15,7 +15,7 @@ export class OCRManager {
       this.activeEngine = null;
     }
 
-    const engine = this.factory.create(id);
+    const engine = await this.factory.create(id);
     this.activeEngine = engine;
     await engine.load();
   }

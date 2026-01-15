@@ -4,9 +4,9 @@ import { EngineFactory } from '../src/engines/engine-factory';
 import type { IOCREngine } from '../src/types/ocr-engine';
 
 describe('EngineFactory property tests', () => {
-  it('registered engines are retrievable by id', () => {
-    fc.assert(
-      fc.property(fc.string({ minLength: 1 }), (id) => {
+  it('registered engines are retrievable by id', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.string({ minLength: 1 }), async (id) => {
         const factory = new EngineFactory();
         const creator = (): IOCREngine => ({
           id,
@@ -17,7 +17,7 @@ describe('EngineFactory property tests', () => {
         });
 
         factory.register(id, creator);
-        const engine = factory.create(id);
+        const engine = await factory.create(id);
 
         expect(engine.id).toBe(id);
       }),
@@ -47,9 +47,9 @@ describe('EngineFactory unit tests', () => {
     expect(factory.getAvailableEngines().sort()).toEqual(['tesseract', 'transformers']);
   });
 
-  it('throws when creating an unknown engine', () => {
+  it('throws when creating an unknown engine', async () => {
     const factory = new EngineFactory();
-    expect(() => factory.create('missing')).toThrow('Engine not registered');
+    await expect(factory.create('missing')).rejects.toThrow('Engine not registered');
   });
 
   it('throws when registering a duplicate engine', () => {
@@ -73,7 +73,7 @@ describe('EngineFactory unit tests', () => {
     ).toThrow('Engine already registered');
   });
 
-  it('throws when engine id mismatches registration', () => {
+  it('throws when engine id mismatches registration', async () => {
     const factory = new EngineFactory();
     factory.register('tesseract', () => ({
       id: 'wrong-id',
@@ -83,6 +83,6 @@ describe('EngineFactory unit tests', () => {
       destroy: async () => {},
     }));
 
-    expect(() => factory.create('tesseract')).toThrow('Engine id mismatch');
+    await expect(factory.create('tesseract')).rejects.toThrow('Engine id mismatch');
   });
 });

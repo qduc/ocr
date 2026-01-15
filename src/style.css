@@ -127,6 +127,14 @@ p {
   color: var(--ink-2);
 }
 
+.metrics {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
 .status-card[data-stage='processing'] .progress-bar {
   background: linear-gradient(90deg, #c97b52, #f0b07b);
 }

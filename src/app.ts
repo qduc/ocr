@@ -1,8 +1,6 @@
 import { FeatureDetector } from '@/utils/feature-detector';
 import { EngineFactory } from '@/engines/engine-factory';
 import { OCRManager } from '@/ocr-manager';
-import { TesseractEngine } from '@/engines/tesseract-engine';
-import { TransformersEngine } from '@/engines/transformers-engine';
 import { ImageProcessor } from '@/utils/image-processor';
 import {
   createInvalidImageError,
@@ -50,6 +48,10 @@ export const initApp = (options: AppOptions = {}) => {
             <div id="progress-bar" class="progress-bar"></div>
           </div>
           <div id="progress-text" class="progress-text">0%</div>
+          <div class="metrics">
+            <div id="load-metric">Load: --</div>
+            <div id="process-metric">Process: --</div>
+          </div>
         </div>
       </header>
 
@@ -90,6 +92,8 @@ export const initApp = (options: AppOptions = {}) => {
   const statusText = root.querySelector<HTMLSpanElement>('#status-text');
   const progressBar = root.querySelector<HTMLDivElement>('#progress-bar');
   const progressText = root.querySelector<HTMLDivElement>('#progress-text');
+  const loadMetric = root.querySelector<HTMLDivElement>('#load-metric');
+  const processMetric = root.querySelector<HTMLDivElement>('#process-metric');
   const fileInput = root.querySelector<HTMLInputElement>('#file-input');
   const fileMeta = root.querySelector<HTMLDivElement>('#file-meta');
   const engineSelect = root.querySelector<HTMLSelectElement>('#engine-select');
@@ -106,6 +110,8 @@ export const initApp = (options: AppOptions = {}) => {
     !statusText ||
     !progressBar ||
     !progressText ||
+    !loadMetric ||
+    !processMetric ||
     !fileInput ||
     !fileMeta ||
     !engineSelect ||
@@ -139,6 +145,14 @@ export const initApp = (options: AppOptions = {}) => {
     progressText.textContent = `${clamped}%`;
   };
 
+  const setLoadMetric = (durationMs: number) => {
+    loadMetric.textContent = `Load: ${Math.round(durationMs)} ms`;
+  };
+
+  const setProcessMetric = (durationMs: number) => {
+    processMetric.textContent = `Process: ${Math.round(durationMs)} ms`;
+  };
+
   const setError = (error: unknown) => {
     const formatted = formatErrorMessage(error);
     const recoverable = error instanceof OCRError ? error.recoverable : true;
@@ -163,13 +177,15 @@ export const initApp = (options: AppOptions = {}) => {
   };
 
   const registerDefaultEngines = () => {
-    engineFactory.register('tesseract', () => {
+    engineFactory.register('tesseract', async () => {
+      const { TesseractEngine } = await import('@/engines/tesseract-engine');
       return new TesseractEngine((status, progress) => {
         const percent = Math.round((progress ?? 0) * 100);
         setStage('loading', `Loading OCR engine: ${status}`, percent);
       });
     });
-    engineFactory.register('transformers', () => {
+    engineFactory.register('transformers', async () => {
+      const { TransformersEngine } = await import('@/engines/transformers-engine');
       return new TransformersEngine({
         webgpu: capabilities.webgpu,
         onProgress: (status, progress) => {
@@ -232,7 +248,9 @@ export const initApp = (options: AppOptions = {}) => {
       setBusy(true);
     }
     try {
+      const loadStart = performance.now();
       await ocrManager.setEngine(engineId);
+      setLoadMetric(performance.now() - loadStart);
       engineReady = true;
       activeEngineId = engineId;
       setStage('idle', `${engineName} ready`, 0);
@@ -302,7 +320,9 @@ export const initApp = (options: AppOptions = {}) => {
       const imageData = await imageProcessor.fileToImageData(selectedFile);
       const resized = imageProcessor.resize(imageData, 2000);
       const preprocessed = imageProcessor.preprocess(resized);
+      const processStart = performance.now();
       const text = await ocrManager.run(preprocessed);
+      setProcessMetric(performance.now() - processStart);
 
       output.textContent = text.trim().length > 0 ? text : 'No text detected in this image.';
       setStage('complete', 'OCR complete', 100);
@@ -345,6 +365,8 @@ export const initApp = (options: AppOptions = {}) => {
       statusText,
       progressBar,
       progressText,
+      loadMetric,
+      processMetric,
     },
     setStage,
   };

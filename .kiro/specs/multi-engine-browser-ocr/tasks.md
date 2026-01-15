@@ -400,13 +400,13 @@ The implementation uses TypeScript for type safety and follows the Strategy Patt
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 20. Performance optimization and final polish
-  - [ ] 20.1 Optimize bundle size
+  - [x] 20.1 Optimize bundle size
     - Implement code splitting for engines
     - Lazy load engine implementations
     - Configure tree shaking
     - _Requirements: 5.5_
   
-  - [ ] 20.2 Add performance monitoring
+  - [x] 20.2 Add performance monitoring
     - Track OCR processing time
     - Track model loading time
     - Display performance metrics in UI (optional)
