@@ -24,6 +24,14 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
     estimatedModelSize: 85,
     supportedLanguages: ['eng'],
   },
+  paddle: {
+    id: 'paddle',
+    name: 'PaddleOCR JS',
+    description: 'High-accuracy OCR using Paddle.js (Baidu)',
+    requiresWebGPU: false,
+    estimatedModelSize: 15,
+    supportedLanguages: ['eng', 'ch'],
+  },
 };
 
 export interface OCRResult {

@@ -194,6 +194,13 @@ export const initApp = (options: AppOptions = {}) => {
         },
       });
     });
+    engineFactory.register('paddle', async () => {
+      const { PaddleEngine } = await import('@/engines/paddle-engine');
+      return new PaddleEngine((status, progress) => {
+        const percent = Math.round((progress ?? 0) * 100);
+        setStage('loading', `Loading PaddleOCR: ${status}`, percent);
+      });
+    });
   };
 
   const updateEngineDetails = (engineId: string) => {
