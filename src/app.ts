@@ -319,9 +319,10 @@ export const initApp = (options: AppOptions = {}) => {
       setStage('processing', 'Processing image...', 100);
       const imageData = await imageProcessor.fileToImageData(selectedFile);
       const resized = imageProcessor.resize(imageData, 2000);
-      const preprocessed = imageProcessor.preprocess(resized);
+      const processed =
+        selectedEngineId === 'transformers' ? resized : imageProcessor.preprocess(resized);
       const processStart = performance.now();
-      const text = await ocrManager.run(preprocessed);
+      const text = await ocrManager.run(processed);
       setProcessMetric(performance.now() - processStart);
 
       output.textContent = text.trim().length > 0 ? text : 'No text detected in this image.';

@@ -39,7 +39,8 @@ export class TesseractEngine implements IOCREngine {
       throw new Error('Tesseract engine not loaded.');
     }
 
-    const result = await this.worker.recognize(data);
+    const blob = await this.imageDataToBlob(data);
+    const result = await this.worker.recognize(blob);
     return result.data.text ?? '';
   }
 
@@ -48,5 +49,46 @@ export class TesseractEngine implements IOCREngine {
       await this.worker.terminate();
       this.worker = null;
     }
+  }
+
+  private async imageDataToBlob(imageData: ImageData): Promise<Blob> {
+    const { width, height } = imageData;
+    const canvas = this.createCanvas(width, height);
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Canvas 2D context is not available.');
+    }
+
+    context.putImageData(imageData, 0, 0);
+
+    if ('convertToBlob' in canvas) {
+      return await (canvas as OffscreenCanvas).convertToBlob({ type: 'image/png' });
+    }
+
+    return await new Promise<Blob>((resolve, reject) => {
+      (canvas as HTMLCanvasElement).toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to encode image for OCR.'));
+        }
+      }, 'image/png');
+    });
+  }
+
+  private createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
+    if (typeof OffscreenCanvas !== 'undefined') {
+      return new OffscreenCanvas(width, height);
+    }
+
+    if (typeof document === 'undefined') {
+      throw new Error('Canvas creation is not available in this environment.');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
   }
 }

@@ -42,6 +42,13 @@ describe('TransformersEngine unit tests', () => {
     pipelineMock.mockReset();
   });
 
+  const createTestImageData = () => {
+    if (typeof ImageData !== 'undefined') {
+      return new ImageData(1, 1);
+    }
+    return { width: 1, height: 1, data: new Uint8ClampedArray(4) } as ImageData;
+  };
+
   it('enables browser caching during load', async () => {
     const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'ok' }]);
     pipelineMock.mockResolvedValueOnce(pipelineInstance);
@@ -73,7 +80,7 @@ describe('TransformersEngine unit tests', () => {
     const engine = new TransformersEngine({ webgpu: false });
     await engine.load();
 
-    const result = await engine.process({} as ImageData);
+    const result = await engine.process(createTestImageData());
     expect(result).toBe('OCR');
   });
 
