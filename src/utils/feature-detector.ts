@@ -4,6 +4,8 @@ export interface FeatureDetectorEnv {
   WebAssembly?: unknown;
   Worker?: unknown;
   indexedDB?: unknown;
+  navigator?: { gpu?: unknown };
+  gpu?: unknown;
 }
 
 export class FeatureDetector {
@@ -25,10 +27,15 @@ export class FeatureDetector {
     return typeof this.env.indexedDB !== 'undefined';
   }
 
+  detectWebGPU(): boolean {
+    return typeof (this.env.navigator?.gpu ?? this.env.gpu) !== 'undefined';
+  }
+
   detect(): BrowserCapabilities {
     const wasm = this.detectWASM();
     const webWorkers = this.detectWebWorkers();
     const indexedDB = this.detectIndexedDB();
+    const webgpu = this.detectWebGPU();
 
     const missing: string[] = [];
     if (!wasm) missing.push('WebAssembly');
@@ -39,6 +46,7 @@ export class FeatureDetector {
       wasm,
       webWorkers,
       indexedDB,
+      webgpu,
       supported: missing.length === 0,
       missing,
     };

@@ -9,11 +9,13 @@ describe('FeatureDetector property tests', () => {
         fc.boolean(),
         fc.boolean(),
         fc.boolean(),
-        (wasmAvailable, workersAvailable, indexedDBAvailable) => {
+        fc.boolean(),
+        (wasmAvailable, workersAvailable, indexedDBAvailable, webgpuAvailable) => {
           const env: FeatureDetectorEnv = {
             WebAssembly: wasmAvailable ? {} : undefined,
             Worker: workersAvailable ? function WorkerStub() {} : undefined,
             indexedDB: indexedDBAvailable ? {} : undefined,
+            navigator: webgpuAvailable ? { gpu: {} } : {},
           };
 
           const detector = new FeatureDetector(env);
@@ -22,6 +24,7 @@ describe('FeatureDetector property tests', () => {
           expect(capabilities.wasm).toBe(wasmAvailable);
           expect(capabilities.webWorkers).toBe(workersAvailable);
           expect(capabilities.indexedDB).toBe(indexedDBAvailable);
+          expect(capabilities.webgpu).toBe(webgpuAvailable);
 
           const expectedMissing: string[] = [];
           if (!wasmAvailable) expectedMissing.push('WebAssembly');
@@ -33,6 +36,19 @@ describe('FeatureDetector property tests', () => {
         }
       ),
       { numRuns: 100 }
+    );
+  });
+
+  it('detectWebGPU reflects navigator.gpu availability', () => {
+    fc.assert(
+      fc.property(fc.boolean(), (webgpuAvailable) => {
+        const env: FeatureDetectorEnv = {
+          navigator: webgpuAvailable ? { gpu: {} } : {},
+        };
+        const detector = new FeatureDetector(env);
+        expect(detector.detectWebGPU()).toBe(webgpuAvailable);
+      }),
+      { numRuns: 50 }
     );
   });
 });
@@ -66,6 +82,16 @@ describe('FeatureDetector unit tests', () => {
   it('detectIndexedDB returns false when indexedDB is unavailable', () => {
     const detector = new FeatureDetector({ indexedDB: undefined });
     expect(detector.detectIndexedDB()).toBe(false);
+  });
+
+  it('detectWebGPU returns true when navigator.gpu is available', () => {
+    const detector = new FeatureDetector({ navigator: { gpu: {} } });
+    expect(detector.detectWebGPU()).toBe(true);
+  });
+
+  it('detectWebGPU returns false when navigator.gpu is unavailable', () => {
+    const detector = new FeatureDetector({ navigator: {} });
+    expect(detector.detectWebGPU()).toBe(false);
   });
 
   it('detect reports missing features when unsupported', () => {

@@ -299,50 +299,50 @@ The implementation uses TypeScript for type safety and follows the Strategy Patt
 
 ### Phase 2: Post-MVP - Transformers.js and Multi-Engine Support
 
-- [ ] 15. Implement WebGPU feature detection
-  - [ ] 15.1 Add detectWebGPU() to FeatureDetector
+- [x] 15. Implement WebGPU feature detection
+  - [x] 15.1 Add detectWebGPU() to FeatureDetector
     - Check for navigator.gpu availability
     - Update BrowserCapabilities interface
     - _Requirements: 8.5_
   
-  - [ ] 15.2 Write property test for WebGPU detection
+  - [x] 15.2 Write property test for WebGPU detection
     - **Property 16: WebGPU Detection Precedes Acceleration**
     - **Validates: Requirements 8.5**
   
-  - [ ] 15.3 Write unit tests for WebGPU detection
+  - [x] 15.3 Write unit tests for WebGPU detection
     - Test with WebGPU available
     - Test with WebGPU unavailable
     - _Requirements: 8.5_
 
-- [ ] 16. Implement Transformers.js engine
-  - [ ] 16.1 Install Transformers.js dependency
+- [x] 16. Implement Transformers.js engine
+  - [x] 16.1 Install Transformers.js dependency
     - Add @xenova/transformers to package.json
     - Configure for browser usage
     - _Requirements: 8.1_
   
-  - [ ] 16.2 Create TransformersEngine class implementing IOCREngine
+  - [x] 16.2 Create TransformersEngine class implementing IOCREngine
     - Implement load() with TrOCR model loading
     - Detect WebGPU and set device (webgpu or wasm)
     - Configure IndexedDB caching
     - Implement progress callback
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
   
-  - [ ] 16.3 Implement process() method
+  - [x] 16.3 Implement process() method
     - Accept ImageData input
     - Call pipeline with image
     - Return generated text
     - _Requirements: 2.5_
   
-  - [ ] 16.4 Implement destroy() method
+  - [x] 16.4 Implement destroy() method
     - Dispose pipeline
     - Clean up resources
     - _Requirements: 6.2_
   
-  - [ ] 16.5 Write property test for WebGPU conditional acceleration
+  - [x] 16.5 Write property test for WebGPU conditional acceleration
     - **Property 15: WebGPU Conditional Acceleration**
     - **Validates: Requirements 8.2, 8.3**
   
-  - [ ] 16.6 Write unit tests for Transformers engine
+  - [x] 16.6 Write unit tests for Transformers engine
     - Test engine loading with mocked Transformers.js
     - Test WebGPU acceleration path
     - Test CPU fallback path
