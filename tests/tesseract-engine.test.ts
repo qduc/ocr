@@ -29,6 +29,15 @@ if (typeof ImageData === 'undefined') {
   // @ts-expect-error - test environment polyfill
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
+/** Mock Canvas for JSDOM */
+if (typeof HTMLCanvasElement !== 'undefined') {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    putImageData: vi.fn(),
+  } as any);
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
+    callback(new Blob());
+  });
+}
 
 const createWorkerMock = vi.mocked(createWorker);
 

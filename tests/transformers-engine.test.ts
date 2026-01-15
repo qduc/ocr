@@ -6,6 +6,9 @@ import { pipeline, env } from '@xenova/transformers';
 vi.mock('@xenova/transformers', () => ({
   pipeline: vi.fn(),
   env: { useBrowserCache: false },
+  RawImage: vi.fn().mockImplementation(() => ({
+    rgb: vi.fn().mockReturnThis(),
+  })),
 }));
 
 const pipelineMock = vi.mocked(pipeline);

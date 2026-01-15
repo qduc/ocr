@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Multi-Engine Browser OCR</title>
+    <script>
+      window.global = window;
+      window.module = { exports: {} };
+      window.exports = window.module.exports;
+      window.Module = {};
+    </script>
   </head>
   <body>
     <div id="app">
