@@ -83,6 +83,14 @@ export function createProcessingFailedError(message?: string, recoverable: boole
   );
 }
 
+export function createInvalidImageError(message?: string): OCRError {
+  return new OCRError(
+    message ?? ERROR_MESSAGES[OCRErrorCode.INVALID_IMAGE].message,
+    OCRErrorCode.INVALID_IMAGE,
+    false
+  );
+}
+
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   options: {

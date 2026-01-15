@@ -4,6 +4,7 @@ import {
   ERROR_MESSAGES,
   createMemoryExhaustedError,
   createProcessingFailedError,
+  createInvalidImageError,
   createUnsupportedBrowserError,
   formatErrorMessage,
   logError,
@@ -106,6 +107,12 @@ describe('Error handling unit tests', () => {
   it('creates processing errors with recovery flags', () => {
     const error = createProcessingFailedError('bad image', false);
     expect(error.code).toBe(OCRErrorCode.PROCESSING_FAILED);
+    expect(error.recoverable).toBe(false);
+  });
+
+  it('creates invalid image errors as non-recoverable', () => {
+    const error = createInvalidImageError('bad file');
+    expect(error.code).toBe(OCRErrorCode.INVALID_IMAGE);
     expect(error.recoverable).toBe(false);
   });
 
