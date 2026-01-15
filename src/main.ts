@@ -1,2 +1,4 @@
-// Main application entry point
-console.log('Multi-Engine Browser OCR System');
+import './style.css';
+import { initApp } from '@/app';
+
+initApp();

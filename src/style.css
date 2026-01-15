@@ -1,0 +1,267 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Space+Grotesk:wght@400;600&display=swap');
+
+:root {
+  color-scheme: light;
+  --bg-1: #f5efe6;
+  --bg-2: #f9f6f1;
+  --ink-1: #1a1a1a;
+  --ink-2: #4b4b4b;
+  --accent: #3b7d6b;
+  --accent-strong: #1f5e4f;
+  --accent-soft: rgba(59, 125, 107, 0.18);
+  --warning: #b23a1a;
+  --card: #ffffff;
+  --border: rgba(26, 26, 26, 0.12);
+  --shadow: 0 24px 48px rgba(26, 26, 26, 0.12);
+  --radius-lg: 24px;
+  --radius-md: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--ink-1);
+  background:
+    radial-gradient(circle at top left, rgba(59, 125, 107, 0.15), transparent 45%),
+    radial-gradient(circle at 20% 80%, rgba(255, 200, 120, 0.35), transparent 45%),
+    linear-gradient(120deg, var(--bg-1), var(--bg-2));
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  margin: 0 0 12px;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
+}
+
+p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+#app {
+  padding: 48px 24px 72px;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  animation: fade-in 0.6s ease-out;
+}
+
+.hero {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: center;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  margin-bottom: 12px;
+}
+
+.subtitle {
+  max-width: 40ch;
+  margin-top: 12px;
+}
+
+.status-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.status-label {
+  color: var(--ink-2);
+}
+
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(26, 26, 26, 0.08);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), #70b9a6);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.status-card[data-stage='processing'] .progress-bar {
+  background: linear-gradient(90deg, #c97b52, #f0b07b);
+}
+
+.status-card[data-stage='error'] .progress-bar {
+  background: linear-gradient(90deg, #b23a1a, #dd7b55);
+}
+
+.main-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.panel {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: 24px;
+  box-shadow: 0 12px 28px rgba(26, 26, 26, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-subtitle {
+  color: var(--ink-2);
+}
+
+.file-input {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--accent-soft);
+  border-radius: 12px;
+  border: 1px dashed rgba(59, 125, 107, 0.4);
+}
+
+.file-meta {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+
+.primary-button,
+.ghost-button {
+  border: none;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 12px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primary-button {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  box-shadow: 0 10px 24px rgba(31, 94, 79, 0.3);
+}
+
+.primary-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.ghost-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-1);
+}
+
+.output {
+  min-height: 220px;
+  white-space: pre-wrap;
+  background: #fdfaf4;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.error-panel {
+  border-left: 4px solid var(--warning);
+  background: rgba(178, 58, 26, 0.08);
+}
+
+.error-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-message {
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.error-suggestion {
+  color: var(--ink-2);
+}
+
+.hidden {
+  display: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  #app {
+    padding: 32px 16px 48px;
+  }
+
+  .status-card {
+    order: 2;
+  }
+
+  .hero {
+    gap: 16px;
+  }
+}
