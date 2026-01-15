@@ -1,5 +1,6 @@
 import { pipeline, env, RawImage } from '@xenova/transformers';
 import type { IOCREngine } from '@/types/ocr-engine';
+import { LineSegmenter, LineSegmenterOptions } from '@/utils/line-segmenter';
 
 export type TransformersProgressCallback = (status: string, progress: number) => void;
 
@@ -15,6 +16,10 @@ type ImageToTextPipeline = (image: ImageInput) => Promise<Array<{ generated_text
 export interface TransformersEngineOptions {
   onProgress?: TransformersProgressCallback;
   webgpu?: boolean;
+  /** Enable multiline support via line segmentation. Default: true */
+  multiline?: boolean;
+  /** Options for line segmentation algorithm */
+  lineSegmenterOptions?: LineSegmenterOptions;
 }
 
 export class TransformersEngine implements IOCREngine {
@@ -23,10 +28,14 @@ export class TransformersEngine implements IOCREngine {
   private pipelineInstance: ImageToTextPipeline | null = null;
   private readonly onProgress?: TransformersProgressCallback;
   private readonly webgpuOverride?: boolean;
+  private readonly multilineEnabled: boolean;
+  private readonly lineSegmenter: LineSegmenter;
 
   constructor(options: TransformersEngineOptions = {}) {
     this.onProgress = options.onProgress;
     this.webgpuOverride = options.webgpu;
+    this.multilineEnabled = options.multiline ?? true;
+    this.lineSegmenter = new LineSegmenter(options.lineSegmenterOptions);
   }
 
   async load(): Promise<void> {
@@ -63,10 +72,39 @@ export class TransformersEngine implements IOCREngine {
       throw new Error('Invalid image data for OCR.');
     }
 
+    // Check if multiline processing should be used
+    if (this.multilineEnabled && this.lineSegmenter.isMultiline(data)) {
+      return this.processMultiline(data);
+    }
+
+    return this.processSingleLine(data);
+  }
+
+  /**
+   * Processes a single line of text.
+   */
+  private async processSingleLine(data: ImageData): Promise<string> {
     const rawImage = new RawImage(data.data, data.width, data.height, 4).rgb();
-    const results = await this.pipelineInstance(rawImage);
+    const results = await this.pipelineInstance!(rawImage);
     const first = results[0];
-    return first?.generated_text ?? first?.text ?? '';
+    return (first?.generated_text ?? first?.text ?? '').trim();
+  }
+
+  /**
+   * Processes multiline text by segmenting into individual lines.
+   */
+  private async processMultiline(data: ImageData): Promise<string> {
+    const lineImages = this.lineSegmenter.extractLines(data);
+    const lineTexts: string[] = [];
+
+    for (const lineImage of lineImages) {
+      const text = await this.processSingleLine(lineImage);
+      if (text) {
+        lineTexts.push(text);
+      }
+    }
+
+    return lineTexts.join('\n');
   }
 
   async destroy(): Promise<void> {
