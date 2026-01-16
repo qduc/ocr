@@ -23,7 +23,28 @@ export interface AppOptions {
   registerEngines?: (factory: EngineFactory, setStage: (stage: Stage, message: string, progress?: number) => void) => void;
 }
 
-export const initApp = (options: AppOptions = {}) => {
+export interface AppInstance {
+  runOcr: () => Promise<void>;
+  elements: {
+    fileInput: HTMLInputElement;
+    engineSelect: HTMLSelectElement;
+    engineDetails: HTMLDivElement;
+    runButton: HTMLButtonElement;
+    output: HTMLDivElement;
+    errorPanel: HTMLDivElement;
+    errorMessage: HTMLParagraphElement;
+    errorSuggestion: HTMLParagraphElement;
+    retryButton: HTMLButtonElement;
+    statusText: HTMLSpanElement;
+    progressBar: HTMLDivElement;
+    progressText: HTMLDivElement;
+    loadMetric: HTMLDivElement;
+    processMetric: HTMLDivElement;
+  };
+  setStage: (stage: Stage, message: string, progress?: number) => void;
+}
+
+export const initApp = (options: AppOptions = {}): AppInstance => {
   const root = options.root ?? document.querySelector<HTMLElement>('#app');
   if (!root) {
     throw new Error('App root not found.');
@@ -137,7 +158,7 @@ export const initApp = (options: AppOptions = {}) => {
   let selectedEngineId: string | null = null;
   let activeEngineId: string | null = null;
 
-  const setStage = (stage: Stage, message: string, progress: number = 0) => {
+  const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
     statusText.textContent = message;
     const clamped = Math.min(100, Math.max(0, Math.round(progress)));
@@ -145,15 +166,15 @@ export const initApp = (options: AppOptions = {}) => {
     progressText.textContent = `${clamped}%`;
   };
 
-  const setLoadMetric = (durationMs: number) => {
+  const setLoadMetric = (durationMs: number): void => {
     loadMetric.textContent = `Load: ${Math.round(durationMs)} ms`;
   };
 
-  const setProcessMetric = (durationMs: number) => {
+  const setProcessMetric = (durationMs: number): void => {
     processMetric.textContent = `Process: ${Math.round(durationMs)} ms`;
   };
 
-  const setError = (error: unknown) => {
+  const setError = (error: unknown): void => {
     const formatted = formatErrorMessage(error);
     const recoverable = error instanceof OCRError ? error.recoverable : true;
     errorPanel.classList.remove('hidden');
@@ -163,23 +184,23 @@ export const initApp = (options: AppOptions = {}) => {
     setStage('error', 'Needs attention', 0);
   };
 
-  const clearError = () => {
+  const clearError = (): void => {
     errorPanel.classList.add('hidden');
     errorMessage.textContent = '';
     errorSuggestion.textContent = '';
   };
 
-  const setBusy = (busy: boolean) => {
+  const setBusy = (busy: boolean): void => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
     engineSelect.disabled = busy;
     runButton.textContent = busy ? 'Working…' : 'Extract text';
   };
 
-  const registerDefaultEngines = () => {
+  const registerDefaultEngines = (): void => {
     engineFactory.register('tesseract', async () => {
       const { TesseractEngine } = await import('@/engines/tesseract-engine');
-      return new TesseractEngine((status, progress) => {
+      return new TesseractEngine((status: string, progress?: number): void => {
         const percent = Math.round((progress ?? 0) * 100);
         setStage('loading', `Loading OCR engine: ${status}`, percent);
       });
@@ -188,7 +209,7 @@ export const initApp = (options: AppOptions = {}) => {
       const { TransformersEngine } = await import('@/engines/transformers-engine');
       return new TransformersEngine({
         webgpu: capabilities.webgpu,
-        onProgress: (status, progress) => {
+        onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading Transformers: ${status}`, percent);
         },
@@ -202,7 +223,7 @@ export const initApp = (options: AppOptions = {}) => {
           rec: '/models/esearch/rec.onnx',
           dict: '/models/esearch/ppocr_keys_v1.txt',
         },
-        onProgress: (status, progress) => {
+        onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading eSearch-OCR: ${status}`, percent);
         },
@@ -210,7 +231,7 @@ export const initApp = (options: AppOptions = {}) => {
     });
   };
 
-  const updateEngineDetails = (engineId: string) => {
+  const updateEngineDetails = (engineId: string): void => {
     const config = ENGINE_CONFIGS[engineId];
     if (!config) {
       engineDetails.textContent = 'Unknown engine configuration.';
@@ -221,7 +242,7 @@ export const initApp = (options: AppOptions = {}) => {
     engineDetails.textContent = `${config.description} • ${config.supportedLanguages.join(', ')}${gpuNote ? ` • ${gpuNote}` : ''}`;
   };
 
-  const getStoredEngine = () => {
+  const getStoredEngine = (): string | null => {
     try {
       return localStorage.getItem('ocr.engine');
     } catch {
@@ -229,7 +250,7 @@ export const initApp = (options: AppOptions = {}) => {
     }
   };
 
-  const setStoredEngine = (engineId: string) => {
+  const setStoredEngine = (engineId: string): void => {
     try {
       localStorage.setItem('ocr.engine', engineId);
     } catch {
@@ -237,7 +258,7 @@ export const initApp = (options: AppOptions = {}) => {
     }
   };
 
-  const populateEngines = () => {
+  const populateEngines = (): void => {
     const engines = engineFactory.getAvailableEngines();
     engineSelect.innerHTML = '';
     for (const engineId of engines) {
@@ -255,7 +276,7 @@ export const initApp = (options: AppOptions = {}) => {
     }
   };
 
-  const switchEngine = async (engineId: string, manageBusy: boolean = true) => {
+  const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
     const engineName = ENGINE_CONFIGS[engineId]?.name ?? engineId;
     setStage('loading', `Switching to ${engineName}...`, 0);
     if (manageBusy) {
@@ -292,7 +313,7 @@ export const initApp = (options: AppOptions = {}) => {
     setStage('idle', 'Ready for upload', 0);
   }
 
-  fileInput.addEventListener('change', () => {
+  fileInput.addEventListener('change', (): void => {
     selectedFile = fileInput.files?.[0] ?? null;
     fileMeta.textContent = selectedFile
       ? `${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB)`
@@ -300,7 +321,7 @@ export const initApp = (options: AppOptions = {}) => {
     output.textContent = selectedFile ? 'Image loaded. Click extract to run OCR.' : 'Upload an image to begin.';
   });
 
-  engineSelect.addEventListener('change', () => {
+  engineSelect.addEventListener('change', (): void => {
     selectedEngineId = engineSelect.value;
     engineReady = false;
     activeEngineId = null;
@@ -309,7 +330,7 @@ export const initApp = (options: AppOptions = {}) => {
     void switchEngine(selectedEngineId);
   });
 
-  const runOcr = async () => {
+  const runOcr = async (): Promise<void> => {
     clearError();
     if (!selectedFile) {
       setError(createInvalidImageError('Select an image file before running OCR.'));
@@ -357,11 +378,11 @@ export const initApp = (options: AppOptions = {}) => {
     }
   };
 
-  runButton.addEventListener('click', () => {
+  runButton.addEventListener('click', (): void => {
     void runOcr();
   });
 
-  retryButton.addEventListener('click', () => {
+  retryButton.addEventListener('click', (): void => {
     void runOcr();
   });
 

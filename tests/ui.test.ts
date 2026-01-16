@@ -43,12 +43,12 @@ const createSupportedDetector = (): FeatureDetector =>
 
 const createImageProcessorStub = (): ImageProcessor =>
   ({
-    fileToImageData: vi.fn(async () => new ImageData(1, 1)),
+    fileToImageData: vi.fn((): Promise<ImageData> => Promise.resolve(new ImageData(1, 1))),
     resize: vi.fn((data: ImageData) => data),
     preprocess: vi.fn((data: ImageData) => data),
   }) as ImageProcessor;
 
-const attachFile = (input: HTMLInputElement, file: File) => {
+const attachFile = (input: HTMLInputElement, file: File): void => {
   Object.defineProperty(input, 'files', {
     value: [file],
     writable: false,
@@ -56,13 +56,13 @@ const attachFile = (input: HTMLInputElement, file: File) => {
   input.dispatchEvent(new Event('change'));
 };
 
-const registerTestEngine = (factory: { register: (id: string, creator: () => unknown) => void }) => {
+const registerTestEngine = (factory: { register: (id: string, creator: () => unknown) => void }): void => {
   factory.register('tesseract', () => ({
     id: 'tesseract',
     isLoading: false,
-    load: async () => {},
-    process: async () => '',
-    destroy: async () => {},
+    load: (): Promise<void> => Promise.resolve(),
+    process: (): Promise<string> => Promise.resolve(''),
+    destroy: (): Promise<void> => Promise.resolve(),
   }));
 };
 
@@ -96,14 +96,15 @@ describe('UI property tests', () => {
   it('displays OCR results after processing', async () => {
     await fc.assert(
       fc.asyncProperty(fc.string(), async (text) => {
+        await Promise.resolve();
         document.body.innerHTML = '<div id="app"></div>';
         const root = document.querySelector<HTMLElement>('#app');
         if (!root) throw new Error('Missing root');
 
         const imageProcessor = createImageProcessorStub();
         const ocrManager = {
-          setEngine: vi.fn(async () => {}),
-          run: vi.fn(async () => text),
+          setEngine: vi.fn((): Promise<void> => Promise.resolve()),
+          run: vi.fn((): Promise<string> => Promise.resolve(text)),
         } as unknown as OCRManager;
 
         const app = initApp({
@@ -127,14 +128,15 @@ describe('UI property tests', () => {
 
 describe('UI integration tests', () => {
   it('runs the upload-to-output flow', async () => {
+    await Promise.resolve();
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
 
     const imageProcessor = createImageProcessorStub();
     const ocrManager = {
-      setEngine: vi.fn(async () => {}),
-      run: vi.fn(async () => 'Detected text'),
+      setEngine: vi.fn((): Promise<void> => Promise.resolve()),
+      run: vi.fn((): Promise<string> => Promise.resolve('Detected text')),
     } as unknown as OCRManager;
 
     const app = initApp({
@@ -153,15 +155,16 @@ describe('UI integration tests', () => {
   });
 
   it('shows errors and retries when recoverable', async () => {
+    await Promise.resolve();
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
 
     const imageProcessor = createImageProcessorStub();
     const error = new OCRError('processing failed', OCRErrorCode.PROCESSING_FAILED, true);
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation((): void => {});
     const ocrManager = {
-      setEngine: vi.fn(async () => {}),
+      setEngine: vi.fn((): Promise<void> => Promise.resolve()),
       run: vi
         .fn()
         .mockRejectedValueOnce(error)
@@ -187,20 +190,21 @@ describe('UI integration tests', () => {
   });
 
   it('shows loading state while the engine initializes', async () => {
+    await Promise.resolve();
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
 
-    let resolveEngine: () => void = () => {};
+    let resolveEngine: () => void = (): void => {};
     const imageProcessor = createImageProcessorStub();
     const ocrManager = {
       setEngine: vi.fn(
-        () =>
+        (): Promise<void> =>
           new Promise<void>((resolve) => {
             resolveEngine = resolve;
           })
       ),
-      run: vi.fn(async () => 'Later text'),
+      run: vi.fn((): Promise<string> => Promise.resolve('Later text')),
     } as unknown as OCRManager;
 
     const app = initApp({

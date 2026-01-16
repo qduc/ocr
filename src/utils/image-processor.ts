@@ -101,12 +101,12 @@ export class ImageProcessor {
       const image = new ImageConstructor();
       const objectUrl = urlApi.createObjectURL(file);
 
-      image.onload = () => {
+      image.onload = (): void => {
         urlApi.revokeObjectURL(objectUrl);
         resolve(image as unknown as ImageBitmap);
       };
 
-      image.onerror = () => {
+      image.onerror = (): void => {
         urlApi.revokeObjectURL(objectUrl);
         reject(new Error('Failed to decode image.'));
       };

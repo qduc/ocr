@@ -6,6 +6,12 @@ import { pipeline, env } from '@xenova/transformers';
 vi.mock('@xenova/transformers', () => ({
   pipeline: vi.fn(),
   env: { useBrowserCache: false },
+  RawImage: class {
+    constructor(public data: unknown, public width: number, public height: number, public channels: number) {}
+    rgb() {
+      return this;
+    }
+  },
 }));
 
 const pipelineMock = vi.mocked(pipeline);
@@ -42,7 +48,7 @@ describe('TransformersEngine unit tests', () => {
     pipelineMock.mockReset();
   });
 
-  const createTestImageData = () => {
+  const createTestImageData = (): ImageData => {
     if (typeof ImageData !== 'undefined') {
       return new ImageData(1, 1);
     }
@@ -61,9 +67,9 @@ describe('TransformersEngine unit tests', () => {
 
   it('invokes progress callback during load', async () => {
     const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'ok' }]);
-    pipelineMock.mockImplementationOnce(async (_task, _model, options) => {
+    pipelineMock.mockImplementationOnce((_task, _model, options): Promise<unknown> => {
       options?.progress_callback?.({ status: 'loading', progress: 0.3 });
-      return pipelineInstance;
+      return Promise.resolve(pipelineInstance);
     });
 
     const progressSpy = vi.fn();

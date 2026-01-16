@@ -2,27 +2,36 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
 import { ESearchEngine } from '../src/engines/esearch-engine';
 import type { ESearchOCROutput, ESearchModelPaths } from '../src/types/esearch-types';
+import { extractTextFromESearchOutput, mapESearchResultToStandard } from '../src/types/esearch-types';
 
 // Mock onnxruntime-web
 vi.mock('onnxruntime-web', () => ({
-  default: {},
+  default: {
+    env: {
+      wasm: { numThreads: 1 },
+    },
+  },
+  env: {
+    wasm: { numThreads: 1 },
+  },
   InferenceSession: {
     create: vi.fn(),
   },
 }));
 
 // Mock esearch-ocr
-const mockOcrInstance = {
-  ocr: vi.fn(),
-  det: vi.fn(),
-  rec: vi.fn(),
-  recRaw: vi.fn(),
-};
-
-const initMock = vi.fn();
+const { mockInit, mockOcrInstance } = vi.hoisted(() => ({
+  mockInit: vi.fn(),
+  mockOcrInstance: {
+    ocr: vi.fn(),
+    det: vi.fn(),
+    rec: vi.fn(),
+    recRaw: vi.fn(),
+  },
+}));
 
 vi.mock('esearch-ocr', () => ({
-  init: initMock,
+  init: mockInit,
 }));
 
 // ImageData polyfill for test environment
@@ -77,7 +86,7 @@ const createMockOCROutput = (text: string = 'Hello World'): ESearchOCROutput => 
   docDir: 0,
 });
 
-const createTestImageData = (width = 100, height = 100) => {
+const createTestImageData = (width = 100, height = 100): ImageData => {
   return new ImageData(width, height);
 };
 
@@ -85,7 +94,7 @@ describe('ESearchEngine property tests', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     originalFetch = globalThis.fetch;
 
     // Mock fetch for model downloads
@@ -134,7 +143,7 @@ describe('ESearchEngine property tests', () => {
             docDir: 0,
           };
 
-          initMock.mockResolvedValueOnce({
+          mockInit.mockResolvedValueOnce({
             ...mockOcrInstance,
             ocr: vi.fn().mockResolvedValue(output),
           });
@@ -156,7 +165,7 @@ describe('ESearchEngine property tests', () => {
         fc.integer({ min: 1, max: 1000 }),
         fc.integer({ min: 1, max: 1000 }),
         async (width, height) => {
-          initMock.mockResolvedValueOnce({
+          mockInit.mockResolvedValueOnce({
             ...mockOcrInstance,
             ocr: vi.fn().mockResolvedValue(createMockOCROutput('Test')),
           });
@@ -178,7 +187,7 @@ describe('ESearchEngine property tests', () => {
   it('cleans up resources on destroy regardless of state', async () => {
     await fc.assert(
       fc.asyncProperty(fc.boolean(), async (loadFirst) => {
-        initMock.mockResolvedValueOnce({
+        mockInit.mockResolvedValueOnce({
           ...mockOcrInstance,
           ocr: vi.fn().mockResolvedValue(createMockOCROutput()),
         });
@@ -201,7 +210,7 @@ describe('ESearchEngine unit tests', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     originalFetch = globalThis.fetch;
 
     // Default mock fetch
@@ -274,7 +283,7 @@ describe('ESearchEngine unit tests', () => {
       });
       globalThis.fetch = fetchMock;
 
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const modelPaths = createMockModelPaths();
       const engine = new ESearchEngine({ modelPaths });
@@ -286,7 +295,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('initializes esearch-ocr with correct options', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const engine = new ESearchEngine({
         modelPaths: createMockModelPaths(),
@@ -294,24 +303,24 @@ describe('ESearchEngine unit tests', () => {
       });
       await engine.load();
 
-      expect(initMock).toHaveBeenCalledWith(
+      expect(mockInit).toHaveBeenCalledWith(
         expect.objectContaining({
           det: expect.objectContaining({
-            input: expect.any(ArrayBuffer),
-          }),
+            input: expect.any(ArrayBuffer) as unknown,
+          }) as unknown,
           rec: expect.objectContaining({
-            input: expect.any(ArrayBuffer),
-            decodeDic: expect.any(String),
+            input: expect.any(ArrayBuffer) as unknown,
+            decodeDic: expect.any(String) as unknown,
             optimize: expect.objectContaining({
               space: false,
-            }),
-          }),
-        })
+            }) as unknown,
+          }) as unknown,
+        }) as unknown
       );
     });
 
     it('invokes progress callback during load stages', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const progressSpy = vi.fn();
       const engine = new ESearchEngine({
@@ -329,17 +338,17 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('does not reload if already loaded', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await engine.load();
       await engine.load(); // Second call
 
-      expect(initMock).toHaveBeenCalledTimes(1);
+      expect(mockInit).toHaveBeenCalledTimes(1);
     });
 
     it('sets isLoading to false after successful load', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await engine.load();
@@ -416,14 +425,14 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('throws error when esearch-ocr init fails', async () => {
-      initMock.mockRejectedValueOnce(new Error('ONNX session creation failed'));
+      mockInit.mockRejectedValueOnce(new Error('ONNX session creation failed'));
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await expect(engine.load()).rejects.toThrow('Failed to load eSearch-OCR engine: ONNX session creation failed');
     });
 
     it('wraps non-Error exceptions in error message', async () => {
-      initMock.mockRejectedValueOnce('string error');
+      mockInit.mockRejectedValueOnce('string error');
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await expect(engine.load()).rejects.toThrow('Failed to load eSearch-OCR engine: Unknown error');
@@ -432,7 +441,7 @@ describe('ESearchEngine unit tests', () => {
 
   describe('process()', () => {
     beforeEach(() => {
-      initMock.mockResolvedValue({
+      mockInit.mockResolvedValue({
         ...mockOcrInstance,
         ocr: vi.fn().mockResolvedValue(createMockOCROutput('Recognized text')),
       });
@@ -479,7 +488,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('wraps OCR processing errors', async () => {
-      initMock.mockResolvedValueOnce({
+      mockInit.mockResolvedValueOnce({
         ...mockOcrInstance,
         ocr: vi.fn().mockRejectedValue(new Error('Recognition failed')),
       });
@@ -493,7 +502,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('handles empty OCR results', async () => {
-      initMock.mockResolvedValueOnce({
+      mockInit.mockResolvedValueOnce({
         ...mockOcrInstance,
         ocr: vi.fn().mockResolvedValue({
           ...createMockOCROutput(),
@@ -509,7 +518,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('joins multiple paragraphs with newlines', async () => {
-      initMock.mockResolvedValueOnce({
+      mockInit.mockResolvedValueOnce({
         ...mockOcrInstance,
         ocr: vi.fn().mockResolvedValue({
           ...createMockOCROutput(),
@@ -531,7 +540,7 @@ describe('ESearchEngine unit tests', () => {
 
   describe('destroy()', () => {
     it('releases OCR instance reference', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await engine.load();
@@ -544,7 +553,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('can be called multiple times safely', async () => {
-      initMock.mockResolvedValueOnce(mockOcrInstance);
+      mockInit.mockResolvedValueOnce(mockOcrInstance);
 
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await engine.load();
@@ -562,7 +571,7 @@ describe('ESearchEngine unit tests', () => {
     });
 
     it('allows reloading after destroy', async () => {
-      initMock
+      mockInit
         .mockResolvedValueOnce({
           ...mockOcrInstance,
           ocr: vi.fn().mockResolvedValue(createMockOCROutput('First load')),
@@ -588,20 +597,20 @@ describe('ESearchEngine unit tests', () => {
     it('reports recognition progress via rec.on callback', async () => {
       let recOnCallback: ((index: number, result: unknown, total: number) => void) | undefined;
 
-      initMock.mockImplementationOnce(async (options: { rec: { on?: (index: number, result: unknown, total: number) => void } }) => {
+      mockInit.mockImplementationOnce((options: { rec: { on?: (index: number, result: unknown, total: number) => void } }): Promise<unknown> => {
         recOnCallback = options.rec.on;
-        return {
+        return Promise.resolve({
           ...mockOcrInstance,
-          ocr: vi.fn().mockImplementation(async () => {
+          ocr: vi.fn().mockImplementation((): Promise<unknown> => {
             // Simulate recognition progress
             if (recOnCallback) {
               recOnCallback(0, [], 3);
               recOnCallback(1, [], 3);
               recOnCallback(2, [], 3);
             }
-            return createMockOCROutput('Test');
+            return Promise.resolve(createMockOCROutput('Test'));
           }),
-        };
+        });
       });
 
       const progressSpy = vi.fn();
@@ -619,14 +628,12 @@ describe('ESearchEngine unit tests', () => {
 
 describe('extractTextFromESearchOutput utility', () => {
   it('extracts text from standard output', () => {
-    const { extractTextFromESearchOutput } = require('../src/types/esearch-types');
 
     const output: ESearchOCROutput = createMockOCROutput('Hello World');
     expect(extractTextFromESearchOutput(output)).toBe('Hello World');
   });
 
   it('joins multiple paragraphs with newlines', () => {
-    const { extractTextFromESearchOutput } = require('../src/types/esearch-types');
 
     const output: ESearchOCROutput = {
       ...createMockOCROutput(),
@@ -640,7 +647,6 @@ describe('extractTextFromESearchOutput utility', () => {
   });
 
   it('returns empty string for empty paragraphs', () => {
-    const { extractTextFromESearchOutput } = require('../src/types/esearch-types');
 
     const output: ESearchOCROutput = {
       ...createMockOCROutput(),
@@ -653,7 +659,6 @@ describe('extractTextFromESearchOutput utility', () => {
 
 describe('mapESearchResultToStandard utility', () => {
   it('maps esearch results to standard format', () => {
-    const { mapESearchResultToStandard } = require('../src/types/esearch-types');
 
     const items = [
       {
@@ -680,7 +685,6 @@ describe('mapESearchResultToStandard utility', () => {
   });
 
   it('handles multiple items', () => {
-    const { mapESearchResultToStandard } = require('../src/types/esearch-types');
 
     const items = [
       {
@@ -705,7 +709,6 @@ describe('mapESearchResultToStandard utility', () => {
   });
 
   it('returns empty array for empty input', () => {
-    const { mapESearchResultToStandard } = require('../src/types/esearch-types');
 
     const result = mapESearchResultToStandard([]);
     expect(result).toEqual([]);

@@ -63,11 +63,11 @@ export class TesseractEngine implements IOCREngine {
     context.putImageData(imageData, 0, 0);
 
     if ('convertToBlob' in canvas) {
-      return await (canvas as OffscreenCanvas).convertToBlob({ type: 'image/png' });
+      return await (canvas).convertToBlob({ type: 'image/png' });
     }
 
     return await new Promise<Blob>((resolve, reject) => {
-      (canvas as HTMLCanvasElement).toBlob((blob) => {
+      (canvas).toBlob((blob) => {
         if (blob) {
           resolve(blob);
         } else {

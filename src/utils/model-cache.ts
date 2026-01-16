@@ -28,7 +28,7 @@ class IndexedDBStorage implements ModelCacheStorage {
   async get(key: string): Promise<ArrayBuffer | null> {
     const db = await this.getDb();
     const store = db.transaction(this.storeName, 'readonly').objectStore(this.storeName);
-    const request = store.get(key);
+    const request = store.get(key) as IDBRequest<ArrayBuffer | undefined>;
     const result = await this.requestToPromise<ArrayBuffer | undefined>(request);
     return result ?? null;
   }
@@ -52,14 +52,14 @@ class IndexedDBStorage implements ModelCacheStorage {
     if (!this.dbPromise) {
       this.dbPromise = new Promise((resolve, reject) => {
         const request = this.idb.open(this.dbName, 1);
-        request.onupgradeneeded = () => {
+        request.onupgradeneeded = (): void => {
           const db = request.result;
           if (!db.objectStoreNames.contains(this.storeName)) {
             db.createObjectStore(this.storeName);
           }
         };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed.'));
+        request.onsuccess = (): void => resolve(request.result);
+        request.onerror = (): void => reject(request.error ?? new Error('IndexedDB open failed.'));
       });
     }
 
@@ -68,8 +68,8 @@ class IndexedDBStorage implements ModelCacheStorage {
 
   private requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed.'));
+      request.onsuccess = (): void => resolve(request.result);
+      request.onerror = (): void => reject(request.error ?? new Error('IndexedDB request failed.'));
     });
   }
 }

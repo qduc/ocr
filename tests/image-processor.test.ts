@@ -26,8 +26,8 @@ if (typeof ImageData === 'undefined') {
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
-const createProcessor = () => {
-  const getContext2d = (canvas: HTMLCanvasElement) =>
+const createProcessor = (): { processor: ImageProcessor; getContext2d: (canvas: HTMLCanvasElement) => CanvasRenderingContext2D } => {
+  const getContext2d = (canvas: HTMLCanvasElement): CanvasRenderingContext2D =>
     ({
       drawImage: vi.fn(),
       putImageData: vi.fn(),
@@ -35,8 +35,8 @@ const createProcessor = () => {
     }) as unknown as CanvasRenderingContext2D;
 
   const processor = new ImageProcessor({
-    createImageBitmap: async () => ({ width: 2, height: 3 }) as ImageBitmap,
-    createCanvas: (width, height) => ({ width, height }) as HTMLCanvasElement,
+    createImageBitmap: (): Promise<ImageBitmap> => Promise.resolve(({ width: 2, height: 3 }) as ImageBitmap),
+    createCanvas: (width: number, height: number): HTMLCanvasElement => ({ width, height }) as HTMLCanvasElement,
     getContext2d,
   });
 
@@ -139,11 +139,9 @@ describe('ImageProcessor unit tests', () => {
 
   it('throws when image decoding fails', async () => {
     const processor = new ImageProcessor({
-      createImageBitmap: async () => {
-        throw new Error('Decode failed');
-      },
-      createCanvas: (width, height) => ({ width, height }) as HTMLCanvasElement,
-      getContext2d: (canvas) =>
+      createImageBitmap: (): Promise<ImageBitmap> => Promise.reject(new Error('Decode failed')),
+      createCanvas: (width: number, height: number): HTMLCanvasElement => ({ width, height }) as HTMLCanvasElement,
+      getContext2d: (canvas: HTMLCanvasElement): CanvasRenderingContext2D =>
         ({
           drawImage: vi.fn(),
           getImageData: vi.fn(() => new ImageData(canvas.width, canvas.height)),

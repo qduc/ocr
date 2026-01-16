@@ -55,11 +55,11 @@ describe('Error handling property tests', () => {
       fc.asyncProperty(fc.integer({ min: 0, max: delays.length }), async (failCount) => {
         vi.useFakeTimers();
         try {
-          const operation = vi.fn(async () => {
+          const operation = vi.fn((): Promise<string> => {
             if (operation.mock.calls.length <= failCount) {
-              throw new Error('fail');
+              return Promise.reject(new Error('fail'));
             }
-            return 'ok';
+            return Promise.resolve('ok');
           });
 
           const promise = retryWithBackoff(operation, { delaysMs: delays });
@@ -119,9 +119,7 @@ describe('Error handling unit tests', () => {
   it('fails after exhausting retry attempts', async () => {
     vi.useFakeTimers();
     try {
-      const operation = vi.fn(async () => {
-        throw new Error('fail');
-      });
+      const operation = vi.fn((): Promise<void> => Promise.reject(new Error('fail')));
 
       const promise = retryWithBackoff(operation, { delaysMs: [1, 2] });
       const expectation = expect(promise).rejects.toThrow('fail');

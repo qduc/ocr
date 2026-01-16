@@ -11,9 +11,9 @@ describe('EngineFactory property tests', () => {
         const creator = (): IOCREngine => ({
           id,
           isLoading: false,
-          load: async () => {},
-          process: async () => '',
-          destroy: async () => {},
+          load: (): Promise<void> => Promise.resolve(),
+          process: (): Promise<string> => Promise.resolve(''),
+          destroy: (): Promise<void> => Promise.resolve(),
         });
 
         factory.register(id, creator);
@@ -32,16 +32,16 @@ describe('EngineFactory unit tests', () => {
     factory.register('tesseract', () => ({
       id: 'tesseract',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
     factory.register('transformers', () => ({
       id: 'transformers',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     expect(factory.getAvailableEngines().sort()).toEqual(['tesseract', 'transformers']);
@@ -57,18 +57,18 @@ describe('EngineFactory unit tests', () => {
     factory.register('tesseract', () => ({
       id: 'tesseract',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     expect(() =>
       factory.register('tesseract', () => ({
         id: 'tesseract',
         isLoading: false,
-        load: async () => {},
-        process: async () => '',
-        destroy: async () => {},
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve(''),
+        destroy: (): Promise<void> => Promise.resolve(),
       }))
     ).toThrow('Engine already registered');
   });
@@ -78,9 +78,9 @@ describe('EngineFactory unit tests', () => {
     factory.register('tesseract', () => ({
       id: 'wrong-id',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     await expect(factory.create('tesseract')).rejects.toThrow('Engine id mismatch');
@@ -93,9 +93,9 @@ describe('EngineFactory eSearch engine tests', () => {
     factory.register('esearch', () => ({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     expect(factory.getAvailableEngines()).toContain('esearch');
@@ -106,9 +106,9 @@ describe('EngineFactory eSearch engine tests', () => {
     factory.register('esearch', () => ({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => 'eSearch OCR result',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve('eSearch OCR result'),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     const engine = await factory.create('esearch');
@@ -121,25 +121,25 @@ describe('EngineFactory eSearch engine tests', () => {
     factory.register('tesseract', () => ({
       id: 'tesseract',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     factory.register('transformers', () => ({
       id: 'transformers',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     factory.register('esearch', () => ({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     const engines = factory.getAvailableEngines().sort();
@@ -154,9 +154,9 @@ describe('EngineFactory eSearch engine tests', () => {
     factory.register('esearch', () => ({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     expect(factory.getAvailableEngines()).toContain('esearch');
@@ -164,12 +164,12 @@ describe('EngineFactory eSearch engine tests', () => {
 
   it('async esearch engine creator works correctly', async () => {
     const factory = new EngineFactory();
-    factory.register('esearch', async () => ({
+    factory.register('esearch', (): Promise<IOCREngine> => Promise.resolve({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => 'async result',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve('async result'),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     const engine = await factory.create('esearch');

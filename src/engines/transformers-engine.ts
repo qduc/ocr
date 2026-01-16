@@ -63,9 +63,9 @@ export class TransformersEngine implements IOCREngine {
       const device = this.isWebGPUSupported() ? 'webgpu' : 'cpu';
       this.pipelineInstance = (await pipeline('image-to-text', 'Xenova/trocr-base-printed', {
         device,
-        progress_callback: (status) => {
+        progress_callback: (status: { status: string; progress?: number }) => {
           if (this.onProgress) {
-            this.onProgress(status.status ?? 'loading', status.progress ?? 0);
+            this.onProgress(status.status, status.progress ?? 0);
           }
         },
       })) as ImageToTextPipeline;
@@ -90,9 +90,9 @@ export class TransformersEngine implements IOCREngine {
   }
 
   async destroy(): Promise<void> {
-    const pipelineInstance = this.pipelineInstance as unknown as { dispose?: () => void };
+    const pipelineInstance = this.pipelineInstance as unknown as { dispose?: () => Promise<void> | void };
     if (pipelineInstance?.dispose) {
-      pipelineInstance.dispose();
+      await Promise.resolve(pipelineInstance.dispose());
     }
     this.pipelineInstance = null;
   }
@@ -116,11 +116,11 @@ export class TransformersEngine implements IOCREngine {
     context.putImageData(imageData, 0, 0);
 
     if ('convertToBlob' in canvas) {
-      return await (canvas as OffscreenCanvas).convertToBlob({ type: 'image/png' });
+      return await (canvas).convertToBlob({ type: 'image/png' });
     }
 
     return await new Promise<Blob>((resolve, reject) => {
-      (canvas as HTMLCanvasElement).toBlob((blob) => {
+      (canvas).toBlob((blob) => {
         if (blob) {
           resolve(blob);
         } else {

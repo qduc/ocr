@@ -9,9 +9,9 @@ describe('IOCREngine property tests', () => {
         const engine: IOCREngine = {
           id,
           isLoading,
-          load: async () => {},
-          process: async (_data: ImageData) => text,
-          destroy: async () => {},
+          load: (): Promise<void> => Promise.resolve(),
+          process: (_data: ImageData): Promise<string> => Promise.resolve(text),
+          destroy: (): Promise<void> => Promise.resolve(),
         };
 
         await engine.load();

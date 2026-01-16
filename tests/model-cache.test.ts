@@ -5,18 +5,21 @@ import { ModelCache, type ModelCacheStorage } from '../src/utils/model-cache';
 class MemoryStorage implements ModelCacheStorage {
   private readonly store = new Map<string, ArrayBuffer>();
 
-  async init(): Promise<void> {}
-
-  async get(key: string): Promise<ArrayBuffer | null> {
-    return this.store.get(key) ?? null;
+  init(): Promise<void> {
+    return Promise.resolve();
   }
 
-  async set(key: string, data: ArrayBuffer): Promise<void> {
+  get(key: string): Promise<ArrayBuffer | null> {
+    return Promise.resolve(this.store.get(key) ?? null);
+  }
+
+  set(key: string, data: ArrayBuffer): Promise<void> {
     this.store.set(key, data);
+    return Promise.resolve();
   }
 
-  async has(key: string): Promise<boolean> {
-    return this.store.has(key);
+  has(key: string): Promise<boolean> {
+    return Promise.resolve(this.store.has(key));
   }
 }
 

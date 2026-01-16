@@ -30,11 +30,31 @@ if (typeof ImageData === 'undefined') {
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
+// Mock Canvas context for JSDOM
+if (typeof document !== 'undefined') {
+  const originalCreateElement = document.createElement.bind(document);
+  document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
+    const element = originalCreateElement(tagName, options);
+    if (tagName === 'canvas') {
+      (element as HTMLCanvasElement).getContext = vi.fn().mockReturnValue({
+        drawImage: vi.fn(),
+        putImageData: vi.fn(),
+        getImageData: vi.fn().mockReturnValue({ data: new Uint8ClampedArray(4) }),
+        canvas: element,
+      });
+      (element as HTMLCanvasElement).toBlob = vi.fn((callback) => {
+        callback(new Blob());
+      });
+    }
+    return element;
+  }) as typeof document.createElement;
+}
+
 const createWorkerMock = vi.mocked(createWorker);
 
-const makeWorker = (text: string = 'hello') => ({
-  recognize: vi.fn().mockResolvedValue({ data: { text } }),
-  terminate: vi.fn().mockResolvedValue(undefined),
+const makeWorker = (text: string = 'hello'): { recognize: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> } => ({
+  recognize: vi.fn().mockResolvedValue({ data: { text } }) as unknown as ReturnType<typeof vi.fn>,
+  terminate: vi.fn().mockResolvedValue(undefined) as unknown as ReturnType<typeof vi.fn>,
 });
 
 describe('TesseractEngine property tests', () => {
@@ -76,8 +96,8 @@ describe('TesseractEngine unit tests', () => {
       1,
       expect.objectContaining({
         cacheMethod: 'refresh',
-        logger: expect.any(Function),
-      })
+        logger: expect.any(Function) as unknown,
+      }) as unknown
     );
   });
 
@@ -85,12 +105,14 @@ describe('TesseractEngine unit tests', () => {
     const worker = makeWorker();
     const progressSpy = vi.fn();
 
-    createWorkerMock.mockImplementationOnce(async (_lang, _oem, options) => {
+    createWorkerMock.mockImplementationOnce((_lang, _oem, options): Promise<unknown> => {
       options?.logger?.({ status: 'loading', progress: 0.5 });
-      return worker as unknown as ReturnType<typeof makeWorker>;
+      return Promise.resolve(worker as unknown as ReturnType<typeof makeWorker>);
     });
 
-    const engine = new TesseractEngine(progressSpy);
+    const engine = new TesseractEngine((status: string, progress?: number): void => {
+      progressSpy(status, progress);
+    });
     await engine.load();
 
     expect(progressSpy).toHaveBeenCalledWith('loading', 0.5);

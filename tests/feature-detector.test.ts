@@ -10,10 +10,10 @@ describe('FeatureDetector property tests', () => {
         fc.boolean(),
         fc.boolean(),
         fc.boolean(),
-        (wasmAvailable, workersAvailable, indexedDBAvailable, webgpuAvailable) => {
+        (wasmAvailable, workersAvailable, indexedDBAvailable, webgpuAvailable): void => {
           const env: FeatureDetectorEnv = {
             WebAssembly: wasmAvailable ? {} : undefined,
-            Worker: workersAvailable ? function WorkerStub() {} : undefined,
+            Worker: workersAvailable ? function WorkerStub(): void {} : undefined,
             indexedDB: indexedDBAvailable ? {} : undefined,
             navigator: webgpuAvailable ? { gpu: {} } : {},
           };
@@ -41,7 +41,7 @@ describe('FeatureDetector property tests', () => {
 
   it('detectWebGPU reflects navigator.gpu availability', () => {
     fc.assert(
-      fc.property(fc.boolean(), (webgpuAvailable) => {
+      fc.property(fc.boolean(), (webgpuAvailable): void => {
         const env: FeatureDetectorEnv = {
           navigator: webgpuAvailable ? { gpu: {} } : {},
         };
@@ -65,7 +65,7 @@ describe('FeatureDetector unit tests', () => {
   });
 
   it('detectWebWorkers returns true when Worker is available', () => {
-    const detector = new FeatureDetector({ Worker: function WorkerStub() {} });
+    const detector = new FeatureDetector({ Worker: function WorkerStub(): void {} });
     expect(detector.detectWebWorkers()).toBe(true);
   });
 

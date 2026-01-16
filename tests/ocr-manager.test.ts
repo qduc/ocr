@@ -16,24 +16,28 @@ describe('OCRManager property tests', () => {
         const engineA: IOCREngine = {
           id: idA,
           isLoading: false,
-          load: async () => {
+          load: (): Promise<void> => {
             calls.push(`load:${idA}`);
+            return Promise.resolve();
           },
-          process: async () => '',
-          destroy: async () => {
+          process: (): Promise<string> => Promise.resolve(''),
+          destroy: (): Promise<void> => {
             calls.push(`destroy:${idA}`);
+            return Promise.resolve();
           },
         };
 
         const engineB: IOCREngine = {
           id: idB,
           isLoading: false,
-          load: async () => {
+          load: (): Promise<void> => {
             calls.push(`load:${idB}`);
+            return Promise.resolve();
           },
-          process: async () => '',
-          destroy: async () => {
+          process: (): Promise<string> => Promise.resolve(''),
+          destroy: (): Promise<void> => {
             calls.push(`destroy:${idB}`);
+            return Promise.resolve();
           },
         };
 
@@ -60,21 +64,22 @@ describe('OCRManager unit tests', () => {
     const factory = new EngineFactory();
     let destroyed = false;
 
-    factory.register('a', () => ({
+    factory.register('a', (): IOCREngine => ({
       id: 'a',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => {
         destroyed = true;
+        return Promise.resolve();
       },
     }));
-    factory.register('b', () => ({
+    factory.register('b', (): IOCREngine => ({
       id: 'b',
       isLoading: false,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     const manager = new OCRManager(factory);
@@ -93,12 +98,12 @@ describe('OCRManager unit tests', () => {
 
   it('propagates loading state from the active engine', async () => {
     const factory = new EngineFactory();
-    factory.register('loading', () => ({
+    factory.register('loading', (): IOCREngine => ({
       id: 'loading',
       isLoading: true,
-      load: async () => {},
-      process: async () => '',
-      destroy: async () => {},
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
     }));
 
     const manager = new OCRManager(factory);

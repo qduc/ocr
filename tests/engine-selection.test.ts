@@ -17,20 +17,20 @@ const createSupportedDetector = (): FeatureDetector =>
     }),
   }) as FeatureDetector;
 
-const registerEngines = (factory: { register: (id: string, creator: () => unknown) => void }) => {
+const registerEngines = (factory: { register: (id: string, creator: () => unknown) => void }): void => {
   factory.register('tesseract', () => ({
     id: 'tesseract',
     isLoading: false,
-    load: async () => {},
-    process: async () => '',
-    destroy: async () => {},
+    load: (): Promise<void> => Promise.resolve(),
+    process: (): Promise<string> => Promise.resolve(''),
+    destroy: (): Promise<void> => Promise.resolve(),
   }));
   factory.register('transformers', () => ({
     id: 'transformers',
     isLoading: false,
-    load: async () => {},
-    process: async () => '',
-    destroy: async () => {},
+    load: (): Promise<void> => Promise.resolve(),
+    process: (): Promise<string> => Promise.resolve(''),
+    destroy: (): Promise<void> => Promise.resolve(),
   }));
 };
 
@@ -42,6 +42,7 @@ describe('Engine selection property tests', () => {
   it('persists engine selection across sessions', async () => {
     await fc.assert(
       fc.asyncProperty(fc.constantFrom('tesseract', 'transformers'), async (engineId) => {
+        await Promise.resolve();
         document.body.innerHTML = '<div id="app"></div>';
         const root = document.querySelector<HTMLElement>('#app');
         if (!root) throw new Error('Missing root');

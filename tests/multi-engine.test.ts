@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { initApp } from '../src/app';
 import { EngineFactory } from '../src/engines/engine-factory';
 import { OCRManager } from '../src/ocr-manager';
@@ -43,12 +43,12 @@ const createSupportedDetector = (): FeatureDetector =>
 
 const createImageProcessorStub = (): ImageProcessor =>
   ({
-    fileToImageData: vi.fn(async () => new ImageData(1, 1)),
+    fileToImageData: vi.fn((): Promise<ImageData> => Promise.resolve(new ImageData(1, 1))),
     resize: vi.fn((data: ImageData) => data),
     preprocess: vi.fn((data: ImageData) => data),
   }) as ImageProcessor;
 
-const attachFile = (input: HTMLInputElement, file: File) => {
+const attachFile = (input: HTMLInputElement, file: File): void => {
   Object.defineProperty(input, 'files', {
     value: [file],
     writable: false,
@@ -57,6 +57,10 @@ const attachFile = (input: HTMLInputElement, file: File) => {
 };
 
 describe('Multi-engine integration', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('switches between engines and cleans up resources', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
@@ -71,27 +75,27 @@ describe('Multi-engine integration', () => {
 
     factory.register('tesseract', () => {
       tesseractInstance = {
-        destroy: async () => tesseractDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void tesseractDestroyed()),
       };
       return {
         id: 'tesseract',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'Tesseract output',
-        destroy: async () => tesseractInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('Tesseract output'),
+        destroy: (): Promise<void> => Promise.resolve(void tesseractInstance?.destroy()),
       };
     });
 
     factory.register('transformers', () => {
       transformersInstance = {
-        destroy: async () => transformersDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void transformersDestroyed()),
       };
       return {
         id: 'transformers',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'Transformers output',
-        destroy: async () => transformersInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('Transformers output'),
+        destroy: (): Promise<void> => Promise.resolve(void transformersInstance?.destroy()),
       };
     });
 
@@ -124,6 +128,10 @@ describe('Multi-engine integration', () => {
 });
 
 describe('Multi-engine eSearch integration', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('switches from tesseract to esearch and cleans up', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
@@ -138,27 +146,27 @@ describe('Multi-engine eSearch integration', () => {
 
     factory.register('tesseract', () => {
       tesseractInstance = {
-        destroy: async () => tesseractDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void tesseractDestroyed()),
       };
       return {
         id: 'tesseract',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'Tesseract output',
-        destroy: async () => tesseractInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('Tesseract output'),
+        destroy: (): Promise<void> => Promise.resolve(void tesseractInstance?.destroy()),
       };
     });
 
     factory.register('esearch', () => {
       esearchInstance = {
-        destroy: async () => esearchDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void esearchDestroyed()),
       };
       return {
         id: 'esearch',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'eSearch output',
-        destroy: async () => esearchInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('eSearch output'),
+        destroy: (): Promise<void> => Promise.resolve(void esearchInstance?.destroy()),
       };
     });
 
@@ -203,27 +211,27 @@ describe('Multi-engine eSearch integration', () => {
 
     factory.register('esearch', () => {
       esearchInstance = {
-        destroy: async () => esearchDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void esearchDestroyed()),
       };
       return {
         id: 'esearch',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'eSearch output',
-        destroy: async () => esearchInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('eSearch output'),
+        destroy: (): Promise<void> => Promise.resolve(void esearchInstance?.destroy()),
       };
     });
 
     factory.register('transformers', () => {
       transformersInstance = {
-        destroy: async () => transformersDestroyed(),
+        destroy: (): Promise<void> => Promise.resolve(void transformersDestroyed()),
       };
       return {
         id: 'transformers',
         isLoading: false,
-        load: async () => {},
-        process: async () => 'Transformers output',
-        destroy: async () => transformersInstance?.destroy(),
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve('Transformers output'),
+        destroy: (): Promise<void> => Promise.resolve(void transformersInstance?.destroy()),
       };
     });
 
@@ -273,25 +281,25 @@ describe('Multi-engine eSearch integration', () => {
     factory.register('tesseract', () => ({
       id: 'tesseract',
       isLoading: false,
-      load: async () => {},
-      process: async () => 'Tesseract output',
-      destroy: async () => tesseractDestroyed(),
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve('Tesseract output'),
+      destroy: (): Promise<void> => Promise.resolve(void tesseractDestroyed()),
     }));
 
     factory.register('transformers', () => ({
       id: 'transformers',
       isLoading: false,
-      load: async () => {},
-      process: async () => 'Transformers output',
-      destroy: async () => transformersDestroyed(),
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve('Transformers output'),
+      destroy: (): Promise<void> => Promise.resolve(void transformersDestroyed()),
     }));
 
     factory.register('esearch', () => ({
       id: 'esearch',
       isLoading: false,
-      load: async () => {},
-      process: async () => 'eSearch output',
-      destroy: async () => esearchDestroyed(),
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve('eSearch output'),
+      destroy: (): Promise<void> => Promise.resolve(void esearchDestroyed()),
     }));
 
     const manager = new OCRManager(factory);
