@@ -86,3 +86,94 @@ describe('EngineFactory unit tests', () => {
     await expect(factory.create('tesseract')).rejects.toThrow('Engine id mismatch');
   });
 });
+
+describe('EngineFactory eSearch engine tests', () => {
+  it('registers esearch engine and lists it', () => {
+    const factory = new EngineFactory();
+    factory.register('esearch', () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => '',
+      destroy: async () => {},
+    }));
+
+    expect(factory.getAvailableEngines()).toContain('esearch');
+  });
+
+  it('creates esearch engine successfully', async () => {
+    const factory = new EngineFactory();
+    factory.register('esearch', () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => 'eSearch OCR result',
+      destroy: async () => {},
+    }));
+
+    const engine = await factory.create('esearch');
+    expect(engine.id).toBe('esearch');
+  });
+
+  it('registers all three engines and lists them', () => {
+    const factory = new EngineFactory();
+
+    factory.register('tesseract', () => ({
+      id: 'tesseract',
+      isLoading: false,
+      load: async () => {},
+      process: async () => '',
+      destroy: async () => {},
+    }));
+
+    factory.register('transformers', () => ({
+      id: 'transformers',
+      isLoading: false,
+      load: async () => {},
+      process: async () => '',
+      destroy: async () => {},
+    }));
+
+    factory.register('esearch', () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => '',
+      destroy: async () => {},
+    }));
+
+    const engines = factory.getAvailableEngines().sort();
+    expect(engines).toEqual(['esearch', 'tesseract', 'transformers']);
+  });
+
+  it('esearch appears in getAvailableEngines() after registration', () => {
+    const factory = new EngineFactory();
+
+    expect(factory.getAvailableEngines()).not.toContain('esearch');
+
+    factory.register('esearch', () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => '',
+      destroy: async () => {},
+    }));
+
+    expect(factory.getAvailableEngines()).toContain('esearch');
+  });
+
+  it('async esearch engine creator works correctly', async () => {
+    const factory = new EngineFactory();
+    factory.register('esearch', async () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => 'async result',
+      destroy: async () => {},
+    }));
+
+    const engine = await factory.create('esearch');
+    expect(engine.id).toBe('esearch');
+    expect(await engine.process({} as ImageData)).toBe('async result');
+  });
+});

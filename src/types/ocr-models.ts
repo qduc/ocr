@@ -24,6 +24,14 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
     estimatedModelSize: 85,
     supportedLanguages: ['eng'],
   },
+  esearch: {
+    id: 'esearch',
+    name: 'eSearch-OCR (PaddleOCR)',
+    description: 'High-accuracy OCR for Chinese and English text',
+    requiresWebGPU: false,
+    estimatedModelSize: 12,
+    supportedLanguages: ['chi_sim', 'eng'],
+  },
 };
 
 export interface OCRResult {

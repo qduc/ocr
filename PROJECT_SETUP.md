@@ -34,10 +34,45 @@ src/
 ├── types/       # TypeScript type definitions
 └── main.ts      # Application entry point
 
+public/
+└── models/
+    └── esearch/ # eSearch-OCR model files (manual download)
+
 tests/           # Test files
 ```
 
-### 6. Verification Tests
+### 6. eSearch-OCR Model Setup
+
+The eSearch-OCR engine requires PaddleOCR model files (~7 MB total):
+
+| File | Purpose | Size |
+|------|---------|------|
+| `det.onnx` | Text detection (DBNet) | ~2.3 MB |
+| `rec.onnx` | Text recognition (CRNN) | ~4.5 MB |
+| `ppocr_keys_v1.txt` | Character dictionary | ~30 KB |
+
+**Quick setup:**
+```bash
+cd public/models/esearch
+curl -LO https://github.com/xushengfeng/eSearch-OCR/releases/download/4.0.0/ch.zip
+unzip ch.zip && rm ch.zip
+```
+
+**Model paths in code:**
+```typescript
+const modelPaths = {
+  det: '/models/esearch/det.onnx',
+  rec: '/models/esearch/rec.onnx',
+  dict: '/models/esearch/ppocr_keys_v1.txt',
+};
+```
+
+See [public/models/esearch/README.md](public/models/esearch/README.md) for:
+- Alternative hosting options (CDN, S3, etc.)
+- File checksums for verification
+- Troubleshooting guide
+
+### 7. Verification Tests
 - ✅ Basic test suite passing (2/2 tests)
 - ✅ Fast-check property-based tests working (2/2 tests)
 - ✅ TypeScript compilation successful

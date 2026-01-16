@@ -194,6 +194,20 @@ export const initApp = (options: AppOptions = {}) => {
         },
       });
     });
+    engineFactory.register('esearch', async () => {
+      const { ESearchEngine } = await import('@/engines/esearch-engine');
+      return new ESearchEngine({
+        modelPaths: {
+          det: '/models/esearch/det.onnx',
+          rec: '/models/esearch/rec.onnx',
+          dict: '/models/esearch/ppocr_keys_v1.txt',
+        },
+        onProgress: (status, progress) => {
+          const percent = Math.round((progress ?? 0) * 100);
+          setStage('loading', `Loading eSearch-OCR: ${status}`, percent);
+        },
+      });
+    });
   };
 
   const updateEngineDetails = (engineId: string) => {

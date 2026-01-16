@@ -602,6 +602,39 @@ MVP is complete when:
 
 ## Changes Log
 
+### 2026-01-16: eSearch-OCR Model Hosting Strategy
+
+**Decision**: Host model files locally in `public/models/esearch/` with manual download
+
+**Rationale**:
+- **Local hosting preferred for MVP**: Simplest setup, no CORS issues, fastest load times
+- **Manual download acceptable**: ~7 MB one-time download is reasonable for developers
+- **Git-ignored**: Model files (*.onnx, *.txt) excluded from version control to keep repo small
+- **Documentation-first**: Clear README with download instructions ensures reproducibility
+
+**Model Files** (from eSearch-OCR v4.0.0):
+| File | Size | Purpose |
+|------|------|---------|
+| `det.onnx` | ~2.3 MB | Text detection (DBNet) |
+| `rec.onnx` | ~4.5 MB | Text recognition (CRNN) |
+| `ppocr_keys_v1.txt` | ~30 KB | Character dictionary (6,623 chars) |
+
+**Alternative Hosting Options** (documented for production):
+1. **jsDelivr CDN**: `https://cdn.jsdelivr.net/gh/xushengfeng/eSearch-OCR@4.0.0/`
+   - Pro: Free, reliable, cached globally
+   - Con: CORS may need verification, dependent on upstream repo
+2. **Self-hosted S3/CloudFront**: Upload to own infrastructure
+   - Pro: Full control, no external dependencies
+   - Con: Cost, maintenance overhead
+3. **GitHub Releases direct**: Direct links to release assets
+   - Pro: Simple, free, versioned
+   - Con: May have rate limits for high traffic
+
+**Implementation**:
+- Directory structure: `public/models/esearch/`
+- Model paths in code: `/models/esearch/{det.onnx,rec.onnx,ppocr_keys_v1.txt}`
+- Documentation: `public/models/esearch/README.md`
+
 ### 2026-01-15: All MVP Blockers Resolved
 
 **Decisions Made**:

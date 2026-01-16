@@ -40,6 +40,26 @@ export class TransformersEngine implements IOCREngine {
       env.allowRemoteModels = true;
       env.localModelPath = '/transformers-models/';
       env.useBrowserCache = true;
+
+      // If Transformers is using the onnxruntime-web WASM backend, ensure it fetches
+      // runtime artifacts from a stable public URL (Vite doesn't guarantee `/node_modules/.vite/deps/`).
+      const envWithOnnx = env as unknown as {
+        backends?: {
+          onnx?: {
+            wasm?: {
+              wasmPaths?: string;
+            };
+          };
+        };
+      };
+      if (envWithOnnx.backends?.onnx?.wasm && !envWithOnnx.backends.onnx.wasm.wasmPaths) {
+        // Use an absolute URL to prevent Vite from trying to process these files as modules.
+        // Vite warns when "importing" files from /public in dev mode.
+        // Use self.location.origin to work in both main thread and workers.
+        const origin = typeof self !== 'undefined' ? self.location.origin : window.location.origin;
+        envWithOnnx.backends.onnx.wasm.wasmPaths = origin + '/onnxruntime-web/';
+      }
+
       const device = this.isWebGPUSupported() ? 'webgpu' : 'cpu';
       this.pipelineInstance = (await pipeline('image-to-text', 'Xenova/trocr-base-printed', {
         device,

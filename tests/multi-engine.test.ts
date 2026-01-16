@@ -122,3 +122,217 @@ describe('Multi-engine integration', () => {
     expect(transformersDestroyed).not.toHaveBeenCalled();
   });
 });
+
+describe('Multi-engine eSearch integration', () => {
+  it('switches from tesseract to esearch and cleans up', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const factory = new EngineFactory();
+    const tesseractDestroyed = vi.fn();
+    const esearchDestroyed = vi.fn();
+
+    let tesseractInstance: { destroy: () => Promise<void> } | null = null;
+    let esearchInstance: { destroy: () => Promise<void> } | null = null;
+
+    factory.register('tesseract', () => {
+      tesseractInstance = {
+        destroy: async () => tesseractDestroyed(),
+      };
+      return {
+        id: 'tesseract',
+        isLoading: false,
+        load: async () => {},
+        process: async () => 'Tesseract output',
+        destroy: async () => tesseractInstance?.destroy(),
+      };
+    });
+
+    factory.register('esearch', () => {
+      esearchInstance = {
+        destroy: async () => esearchDestroyed(),
+      };
+      return {
+        id: 'esearch',
+        isLoading: false,
+        load: async () => {},
+        process: async () => 'eSearch output',
+        destroy: async () => esearchInstance?.destroy(),
+      };
+    });
+
+    const manager = new OCRManager(factory);
+    const app = initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      engineFactory: factory,
+      ocrManager: manager,
+      registerEngines: () => {},
+    });
+
+    const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
+    attachFile(app.elements.fileInput, file);
+    await app.runOcr();
+
+    expect(app.elements.output.textContent).toBe('Tesseract output');
+
+    app.elements.engineSelect.value = 'esearch';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await app.runOcr();
+
+    expect(app.elements.output.textContent).toBe('eSearch output');
+    expect(tesseractDestroyed).toHaveBeenCalled();
+    expect(esearchDestroyed).not.toHaveBeenCalled();
+  });
+
+  it('switches from esearch to transformers and cleans up', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const factory = new EngineFactory();
+    const esearchDestroyed = vi.fn();
+    const transformersDestroyed = vi.fn();
+
+    let esearchInstance: { destroy: () => Promise<void> } | null = null;
+    let transformersInstance: { destroy: () => Promise<void> } | null = null;
+
+    factory.register('esearch', () => {
+      esearchInstance = {
+        destroy: async () => esearchDestroyed(),
+      };
+      return {
+        id: 'esearch',
+        isLoading: false,
+        load: async () => {},
+        process: async () => 'eSearch output',
+        destroy: async () => esearchInstance?.destroy(),
+      };
+    });
+
+    factory.register('transformers', () => {
+      transformersInstance = {
+        destroy: async () => transformersDestroyed(),
+      };
+      return {
+        id: 'transformers',
+        isLoading: false,
+        load: async () => {},
+        process: async () => 'Transformers output',
+        destroy: async () => transformersInstance?.destroy(),
+      };
+    });
+
+    const manager = new OCRManager(factory);
+    const app = initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      engineFactory: factory,
+      ocrManager: manager,
+      registerEngines: () => {},
+    });
+
+    const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
+    attachFile(app.elements.fileInput, file);
+
+    // Start with esearch
+    app.elements.engineSelect.value = 'esearch';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('eSearch output');
+
+    // Switch to transformers
+    app.elements.engineSelect.value = 'transformers';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await app.runOcr();
+
+    expect(app.elements.output.textContent).toBe('Transformers output');
+    expect(esearchDestroyed).toHaveBeenCalled();
+    expect(transformersDestroyed).not.toHaveBeenCalled();
+  });
+
+  it('cycles through all three engines with proper cleanup', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const factory = new EngineFactory();
+    const tesseractDestroyed = vi.fn();
+    const transformersDestroyed = vi.fn();
+    const esearchDestroyed = vi.fn();
+
+    factory.register('tesseract', () => ({
+      id: 'tesseract',
+      isLoading: false,
+      load: async () => {},
+      process: async () => 'Tesseract output',
+      destroy: async () => tesseractDestroyed(),
+    }));
+
+    factory.register('transformers', () => ({
+      id: 'transformers',
+      isLoading: false,
+      load: async () => {},
+      process: async () => 'Transformers output',
+      destroy: async () => transformersDestroyed(),
+    }));
+
+    factory.register('esearch', () => ({
+      id: 'esearch',
+      isLoading: false,
+      load: async () => {},
+      process: async () => 'eSearch output',
+      destroy: async () => esearchDestroyed(),
+    }));
+
+    const manager = new OCRManager(factory);
+    const app = initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      engineFactory: factory,
+      ocrManager: manager,
+      registerEngines: () => {},
+    });
+
+    const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
+    attachFile(app.elements.fileInput, file);
+
+    // Start with tesseract (default)
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('Tesseract output');
+
+    // Switch to esearch
+    app.elements.engineSelect.value = 'esearch';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('eSearch output');
+    expect(tesseractDestroyed).toHaveBeenCalledTimes(1);
+
+    // Switch to transformers
+    app.elements.engineSelect.value = 'transformers';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('Transformers output');
+    expect(esearchDestroyed).toHaveBeenCalledTimes(1);
+
+    // Switch back to tesseract
+    app.elements.engineSelect.value = 'tesseract';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('Tesseract output');
+    expect(transformersDestroyed).toHaveBeenCalledTimes(1);
+  });
+});

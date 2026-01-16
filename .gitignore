@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# eSearch-OCR model files (large binaries)
+# Download instructions: public/models/esearch/README.md
+public/models/esearch/*.onnx
+public/models/esearch/*.txt
+!public/models/esearch/README.md
+!public/models/esearch/.gitkeep
