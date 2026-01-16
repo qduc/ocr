@@ -17,6 +17,27 @@ export interface LineSegment {
   bottom: number;
   /** Height of the line region */
   height: number;
+  /** X-coordinate of the left edge of detected text (optional, for horizontal cropping) */
+  left?: number;
+  /** X-coordinate of the right edge of detected text (optional, for horizontal cropping) */
+  right?: number;
+}
+
+/**
+ * Quality metrics for line detection confidence.
+ * Higher scores indicate more reliable detection.
+ */
+export interface LineDetectionQuality {
+  /** Overall confidence score (0-1). Higher is better. */
+  confidence: number;
+  /** Number of lines detected */
+  lineCount: number;
+  /** Average contrast ratio between text and background */
+  contrastRatio: number;
+  /** Whether the detection is likely reliable */
+  isReliable: boolean;
+  /** Specific issues detected, if any */
+  warnings: string[];
 }
 
 export interface LineSegmenterOptions {
@@ -26,14 +47,35 @@ export interface LineSegmenterOptions {
   minGapHeight?: number;
   /** Minimum percentage of row width that must have ink to be considered text. Default: 0.3 */
   minRowInkPercent?: number;
-  /** Padding to add above and below each line segment. Default: 4 */
-  linePadding?: number;
+  /**
+   * Vertical padding to add above and below each line segment.
+   * Generous padding prevents cutting ascenders (b, d, f, h, k, l, t) and
+   * descenders (g, j, p, q, y). Default: 6
+   */
+  verticalPadding?: number;
+  /**
+   * Horizontal padding to add to left and right of each line.
+   * Prevents cutting first/last characters at edges. Default: 8
+   */
+  horizontalPadding?: number;
+  /**
+   * Additional padding as a fraction of detected line height.
+   * Applied on top of fixed padding for proportional scaling.
+   * Default: 0.15 (15% of line height)
+   */
+  proportionalPadding?: number;
   /** Enable adaptive thresholding for complex backgrounds. Default: true */
   adaptiveThreshold?: boolean;
   /** Block size for local adaptive thresholding. Default: 15 */
   adaptiveBlockSize?: number;
   /** Constant subtracted from mean in adaptive thresholding. Default: 10 */
   adaptiveC?: number;
+  /**
+   * Minimum aspect ratio (width/height) to consider an image as a single line.
+   * Images wider than this ratio are assumed to be single lines even if
+   * projection analysis suggests otherwise. Default: 12
+   */
+  singleLineAspectRatio?: number;
 }
 
 export class LineSegmenter {
@@ -44,10 +86,16 @@ export class LineSegmenter {
       minLineHeight: options.minLineHeight ?? 8,
       minGapHeight: options.minGapHeight ?? 3,
       minRowInkPercent: options.minRowInkPercent ?? 0.3,
-      linePadding: options.linePadding ?? 4,
+      // Generous vertical padding for ascenders/descenders (g, y, j, p, b, d, f, h, k, l, t)
+      verticalPadding: options.verticalPadding ?? 6,
+      // Horizontal padding to avoid cutting first/last characters
+      horizontalPadding: options.horizontalPadding ?? 8,
+      // Proportional padding scales with line height
+      proportionalPadding: options.proportionalPadding ?? 0.15,
       adaptiveThreshold: options.adaptiveThreshold ?? true,
       adaptiveBlockSize: options.adaptiveBlockSize ?? 15,
       adaptiveC: options.adaptiveC ?? 10,
+      singleLineAspectRatio: options.singleLineAspectRatio ?? 12,
     };
   }
 
@@ -103,19 +151,208 @@ export class LineSegmenter {
 
   /**
    * Checks if an image likely contains multiple lines of text.
+   * Uses multiple heuristics to avoid false positives on wide single lines.
+   *
+   * Heuristics applied:
+   * 1. Very wide aspect ratio (> singleLineAspectRatio) → single line
+   * 2. Tall + narrow aspect ratio with sufficient height → likely multiline
+   * 3. Projection analysis confirms multiple distinct line regions
+   * 4. Validates detected lines have reasonable spacing
    */
   isMultiline(imageData: ImageData): boolean {
-    const aspectRatio = imageData.width / imageData.height;
-    if (aspectRatio > 15) {
+    const { width, height } = imageData;
+    const aspectRatio = width / height;
+
+    // Very wide images are almost certainly single lines
+    // Even with some vertical variance, treat as single line
+    if (aspectRatio > this.options.singleLineAspectRatio) {
       return false;
     }
 
-    if (aspectRatio < 2 && imageData.height > 100) {
+    // Moderately wide images (8-12 ratio) need careful analysis
+    // Only treat as single line if projection shows single text band
+    if (aspectRatio > 8) {
+      const segments = this.detectLines(imageData);
+      // For wide images, require strong evidence of multiple lines
+      if (segments.length <= 1) {
+        return false;
+      }
+      // Verify gaps between lines are substantial (not just noise)
+      const hasSubstantialGaps = this.validateLineGaps(segments, height);
+      return hasSubstantialGaps;
+    }
+
+    // Tall, narrow images are likely multiline if they have enough height
+    // for at least 2 reasonable text lines (~40px each minimum)
+    if (aspectRatio < 2 && height > 80) {
       return true;
     }
 
+    // For medium aspect ratios, rely on projection analysis
     const segments = this.detectLines(imageData);
-    return segments.length > 1;
+
+    // Single detected segment is definitively single-line
+    if (segments.length <= 1) {
+      return false;
+    }
+
+    // Multiple segments: validate they represent real separate lines
+    return this.validateLineGaps(segments, height);
+  }
+
+  /**
+   * Validates that detected line segments have meaningful gaps between them.
+   * Filters out false multiline detection from noise or uneven baselines.
+   *
+   * @param segments - Detected line segments
+   * @param imageHeight - Total image height
+   * @returns True if gaps suggest real separate lines
+   */
+  private validateLineGaps(segments: LineSegment[], imageHeight: number): boolean {
+    if (segments.length < 2) {
+      return false;
+    }
+
+    // Calculate average line height
+    const avgLineHeight = segments.reduce((sum, s) => sum + s.height, 0) / segments.length;
+
+    // Check gaps between consecutive segments
+    for (let i = 1; i < segments.length; i++) {
+      const prevSegment = segments[i - 1];
+      const currSegment = segments[i];
+      if (!prevSegment || !currSegment) continue;
+
+      const gap = currSegment.top - prevSegment.bottom;
+
+      // Gap should be at least 20% of average line height to be meaningful
+      // This filters out detection splits from uneven text baselines
+      if (gap < avgLineHeight * 0.2) {
+        return false;
+      }
+    }
+
+    // Also verify total line content doesn't exceed image bounds unreasonably
+    const totalLineHeight = segments.reduce((sum, s) => sum + s.height, 0);
+    // Gap ratio could be used for additional heuristics in the future
+    const _totalGaps = imageHeight - totalLineHeight;
+    void _totalGaps; // Reserved for future gap-based heuristics
+
+    // Lines + gaps should reasonably fill the image
+    // If detected lines are tiny compared to image, likely noise
+    if (totalLineHeight < imageHeight * 0.3) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Analyzes image and returns quality metrics for line detection.
+   * Use this to assess confidence in detection results.
+   *
+   * @param imageData - Source image to analyze
+   * @returns Quality metrics including confidence score and warnings
+   */
+  analyzeQuality(imageData: ImageData): LineDetectionQuality {
+    const warnings: string[] = [];
+    let confidence = 1.0;
+
+    const { width, height } = imageData;
+    const aspectRatio = width / height;
+
+    // Analyze grayscale for contrast
+    const grayscale = this.toGrayscale(imageData);
+    const { min, max, mean: _mean, stdDev } = this.computeGrayscaleStats(grayscale);
+    const contrastRatio = max > min ? (max - min) / 255 : 0;
+    void _mean; // Available for future mean-based analysis
+
+    // Low contrast warning
+    if (contrastRatio < 0.3) {
+      warnings.push('Low contrast: text may not be clearly distinguishable from background');
+      confidence *= 0.7;
+    }
+
+    // Very low standard deviation suggests uniform image
+    if (stdDev < 20) {
+      warnings.push('Low variance: image may be blank or have minimal text');
+      confidence *= 0.6;
+    }
+
+    // Extreme aspect ratios
+    if (aspectRatio > 20) {
+      warnings.push('Very wide aspect ratio: may be a single word or partial line');
+      confidence *= 0.8;
+    } else if (aspectRatio < 0.5) {
+      warnings.push('Very tall aspect ratio: may be rotated or columnar text');
+      confidence *= 0.7;
+    }
+
+    // Detect lines and assess
+    const segments = this.detectLines(imageData);
+
+    // No lines detected
+    if (segments.length === 0) {
+      warnings.push('No text lines detected: image may be blank or text too faint');
+      confidence *= 0.3;
+    }
+
+    // Very many lines in small image
+    if (segments.length > 10 && height < 500) {
+      warnings.push('Many lines detected in small image: possible noise or over-segmentation');
+      confidence *= 0.6;
+    }
+
+    // Check for very small lines
+    const smallLines = segments.filter(s => s.height < 12);
+    if (smallLines.length > segments.length * 0.3) {
+      warnings.push('Many small line segments: text may be too small or noisy');
+      confidence *= 0.8;
+    }
+
+    return {
+      confidence: Math.max(0, Math.min(1, confidence)),
+      lineCount: segments.length,
+      contrastRatio,
+      isReliable: confidence >= 0.6 && warnings.length <= 1,
+      warnings,
+    };
+  }
+
+  /**
+   * Computes basic statistics for grayscale image data.
+   */
+  private computeGrayscaleStats(grayscale: Uint8Array): {
+    min: number;
+    max: number;
+    mean: number;
+    stdDev: number;
+  } {
+    if (grayscale.length === 0) {
+      return { min: 0, max: 0, mean: 0, stdDev: 0 };
+    }
+
+    let min = 255;
+    let max = 0;
+    let sum = 0;
+
+    for (let i = 0; i < grayscale.length; i++) {
+      const val = grayscale[i] ?? 0;
+      if (val < min) min = val;
+      if (val > max) max = val;
+      sum += val;
+    }
+
+    const mean = sum / grayscale.length;
+
+    let varianceSum = 0;
+    for (let i = 0; i < grayscale.length; i++) {
+      const diff = (grayscale[i] ?? 0) - mean;
+      varianceSum += diff * diff;
+    }
+
+    const stdDev = Math.sqrt(varianceSum / grayscale.length);
+
+    return { min, max, mean, stdDev };
   }
 
   /**
@@ -429,13 +666,14 @@ export class LineSegmenter {
 
   /**
    * Merges close segments and filters out noise.
+   * Applies generous padding to prevent cutting ascenders/descenders.
    */
   private mergeAndFilterSegments(segments: LineSegment[], imageHeight: number): LineSegment[] {
     if (segments.length === 0) {
       return [];
     }
 
-    const { minLineHeight, minGapHeight, linePadding } = this.options;
+    const { minLineHeight, minGapHeight, verticalPadding, proportionalPadding } = this.options;
 
     // Merge segments that are too close together
     const merged: LineSegment[] = [];
@@ -476,37 +714,181 @@ export class LineSegmenter {
     // Filter out segments that are too small
     const filtered = merged.filter((s) => s.height >= minLineHeight);
 
-    // Add padding and clamp to image bounds
+    // Add generous padding to prevent cutting ascenders (b,d,f,h,k,l,t) and
+    // descenders (g,j,p,q,y). Use both fixed and proportional padding.
     return filtered.map((segment) => {
-      const top = Math.max(0, segment.top - linePadding);
-      const bottom = Math.min(imageHeight - 1, segment.bottom + linePadding);
+      // Calculate proportional padding based on line height
+      const proportionalPad = Math.ceil(segment.height * proportionalPadding);
+
+      // Total vertical padding: fixed + proportional
+      const totalVerticalPad = verticalPadding + proportionalPad;
+
+      const top = Math.max(0, segment.top - totalVerticalPad);
+      const bottom = Math.min(imageHeight - 1, segment.bottom + totalVerticalPad);
+
       return {
         top,
         bottom,
         height: bottom - top + 1,
+        // Preserve horizontal bounds if they were set
+        left: segment.left,
+        right: segment.right,
       };
     });
   }
 
   /**
-   * Crops a single line from the source image.
+   * Crops a single line from the source image with generous padding.
+   * Applies horizontal padding to prevent cutting first/last characters,
+   * and fills padded areas with detected background color.
+   *
+   * @param imageData - Source image
+   * @param segment - Line segment boundaries
+   * @returns Cropped line image with padding
    */
   private cropLine(imageData: ImageData, segment: LineSegment): ImageData {
-    const { width, data } = imageData;
-    const { top, height } = segment;
+    const { width: srcWidth, height: srcHeight, data } = imageData;
+    const { top, height: segHeight, left: segLeft, right: segRight } = segment;
+    const { horizontalPadding, proportionalPadding } = this.options;
 
-    const lineData = new Uint8ClampedArray(width * height * 4);
+    // Detect background color from image corners for padding fill
+    const bgColor = this.detectBackgroundColor(imageData);
 
-    for (let y = 0; y < height; y++) {
+    // Calculate horizontal bounds with padding
+    // If segment has explicit left/right, use those; otherwise use full width
+    const contentLeft = segLeft ?? 0;
+    const contentRight = segRight ?? srcWidth - 1;
+    const contentWidth = contentRight - contentLeft + 1;
+
+    // Calculate proportional horizontal padding based on content width
+    const proportionalHPad = Math.ceil(contentWidth * proportionalPadding * 0.5);
+    const totalHPad = horizontalPadding + proportionalHPad;
+
+    // For full-width crops, just add horizontal padding to edges
+    // For partial-width crops, crop to content bounds with padding
+    const cropLeft = Math.max(0, contentLeft - totalHPad);
+    const cropRight = Math.min(srcWidth - 1, contentRight + totalHPad);
+    const cropWidth = cropRight - cropLeft + 1;
+
+    const lineData = new Uint8ClampedArray(cropWidth * segHeight * 4);
+
+    // Fill with background color first
+    for (let i = 0; i < lineData.length; i += 4) {
+      lineData[i] = bgColor.r;
+      lineData[i + 1] = bgColor.g;
+      lineData[i + 2] = bgColor.b;
+      lineData[i + 3] = 255;
+    }
+
+    // Copy source pixels
+    for (let y = 0; y < segHeight; y++) {
       const srcRow = top + y;
-      const srcOffset = srcRow * width * 4;
-      const destOffset = y * width * 4;
+      if (srcRow < 0 || srcRow >= srcHeight) continue;
 
-      for (let x = 0; x < width * 4; x++) {
-        lineData[destOffset + x] = data[srcOffset + x] ?? 0;
+      for (let x = 0; x < cropWidth; x++) {
+        const srcX = cropLeft + x;
+        if (srcX < 0 || srcX >= srcWidth) continue;
+
+        const srcOffset = (srcRow * srcWidth + srcX) * 4;
+        const destOffset = (y * cropWidth + x) * 4;
+
+        lineData[destOffset] = data[srcOffset] ?? bgColor.r;
+        lineData[destOffset + 1] = data[srcOffset + 1] ?? bgColor.g;
+        lineData[destOffset + 2] = data[srcOffset + 2] ?? bgColor.b;
+        lineData[destOffset + 3] = data[srcOffset + 3] ?? 255;
       }
     }
 
-    return new ImageData(lineData, width, height);
+    return new ImageData(lineData, cropWidth, segHeight);
+  }
+
+  /**
+   * Detects the predominant background color by sampling image corners.
+   * Used to fill padding areas with a natural-looking background.
+   *
+   * @param imageData - Source image
+   * @returns RGB color values for background
+   */
+  private detectBackgroundColor(imageData: ImageData): { r: number; g: number; b: number } {
+    const { width, height, data } = imageData;
+
+    // Sample corners and edges
+    const sampleSize = Math.min(10, Math.floor(width / 4), Math.floor(height / 4));
+    const samples: Array<{ r: number; g: number; b: number }> = [];
+
+    // Sample from four corners
+    const corners = [
+      { x: 0, y: 0 },
+      { x: width - sampleSize, y: 0 },
+      { x: 0, y: height - sampleSize },
+      { x: width - sampleSize, y: height - sampleSize },
+    ];
+
+    for (const corner of corners) {
+      for (let dy = 0; dy < sampleSize; dy++) {
+        for (let dx = 0; dx < sampleSize; dx++) {
+          const x = Math.min(corner.x + dx, width - 1);
+          const y = Math.min(corner.y + dy, height - 1);
+          const idx = (y * width + x) * 4;
+          samples.push({
+            r: data[idx] ?? 255,
+            g: data[idx + 1] ?? 255,
+            b: data[idx + 2] ?? 255,
+          });
+        }
+      }
+    }
+
+    // Average the samples
+    if (samples.length === 0) {
+      return { r: 255, g: 255, b: 255 }; // Default to white
+    }
+
+    const avg = samples.reduce(
+      (acc, s) => ({ r: acc.r + s.r, g: acc.g + s.g, b: acc.b + s.b }),
+      { r: 0, g: 0, b: 0 }
+    );
+
+    return {
+      r: Math.round(avg.r / samples.length),
+      g: Math.round(avg.g / samples.length),
+      b: Math.round(avg.b / samples.length),
+    };
+  }
+
+  /**
+   * Finds the horizontal text bounds within a row range.
+   * Used to detect where text actually starts/ends for smarter cropping.
+   *
+   * @param binary - Binary image data
+   * @param width - Image width
+   * @param topRow - Starting row
+   * @param bottomRow - Ending row
+   * @returns Left and right text bounds
+   */
+  private findHorizontalBounds(
+    binary: Uint8Array,
+    width: number,
+    topRow: number,
+    bottomRow: number
+  ): { left: number; right: number } {
+    let left = width;
+    let right = 0;
+
+    for (let y = topRow; y <= bottomRow; y++) {
+      for (let x = 0; x < width; x++) {
+        if ((binary[y * width + x] ?? 0) === 1) {
+          if (x < left) left = x;
+          if (x > right) right = x;
+        }
+      }
+    }
+
+    // If no text found, return full width
+    if (left > right) {
+      return { left: 0, right: width - 1 };
+    }
+
+    return { left, right };
   }
 }

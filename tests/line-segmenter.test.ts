@@ -215,7 +215,7 @@ describe('LineSegmenter unit tests', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
       minGapHeight: 3,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: false,
     });
     const linePositions = [
@@ -256,7 +256,7 @@ describe('LineSegmenter unit tests', () => {
   });
 
   it('returns original image when single line covers most of image', () => {
-    const segmenter = new LineSegmenter({ linePadding: 0, adaptiveThreshold: false });
+    const segmenter = new LineSegmenter({ verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0, adaptiveThreshold: false });
     const linePositions = [{ start: 5, end: 85 }];
     const imageData = createTestImageWithLines(200, 100, linePositions);
 
@@ -270,7 +270,7 @@ describe('LineSegmenter unit tests', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
       minGapHeight: 3,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: false,
     });
     const linePositions = [
@@ -290,7 +290,7 @@ describe('LineSegmenter adaptive thresholding', () => {
     const segmenter = new LineSegmenter({
       adaptiveThreshold: true,
       minLineHeight: 5,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
     });
     const linePositions = [
       { start: 20, end: 40 },
@@ -305,7 +305,7 @@ describe('LineSegmenter adaptive thresholding', () => {
   it('handles light text on dark background (inverted polarity)', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: false,
     });
     const linePositions = [
@@ -338,7 +338,7 @@ describe('LineSegmenter color handling', () => {
   it('handles colored text on white background', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: false,
     });
 
@@ -373,7 +373,7 @@ describe('LineSegmenter color handling', () => {
   it('handles red text on light background', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: false,
     });
 
@@ -408,7 +408,7 @@ describe('LineSegmenter color handling', () => {
   it('handles low contrast text', () => {
     const segmenter = new LineSegmenter({
       minLineHeight: 5,
-      linePadding: 0,
+      verticalPadding: 0, horizontalPadding: 0, proportionalPadding: 0,
       adaptiveThreshold: true, // Adaptive is better for low contrast
       adaptiveC: 5, // Lower C for detecting subtle differences
     });
@@ -564,5 +564,170 @@ describe('LineSegmenter options', () => {
     const segments = segmenter.detectLines(imageData);
 
     expect(segments.length).toBe(1);
+  });
+});
+
+describe('LineSegmenter quality analysis', () => {
+  it('returns high confidence for clear text on white background', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    const imageData = createTestImageWithLines(200, 100, [{ start: 30, end: 50 }]);
+    const quality = segmenter.analyzeQuality(imageData);
+
+    expect(quality.confidence).toBeGreaterThan(0.5);
+    expect(quality.isReliable).toBe(true);
+    expect(quality.lineCount).toBe(1);
+    expect(quality.contrastRatio).toBeGreaterThan(0.5);
+  });
+
+  it('returns low confidence for blank image', () => {
+    const segmenter = new LineSegmenter();
+    const width = 100;
+    const height = 100;
+    const data = new Uint8ClampedArray(width * height * 4);
+
+    // Fill with white
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+    }
+
+    const imageData = new ImageData(data, width, height);
+    const quality = segmenter.analyzeQuality(imageData);
+
+    expect(quality.confidence).toBeLessThan(0.5);
+    expect(quality.isReliable).toBe(false);
+    expect(quality.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('warns about very wide aspect ratio', () => {
+    const segmenter = new LineSegmenter();
+    const linePositions = [{ start: 2, end: 8 }];
+    const imageData = createTestImageWithLines(500, 10, linePositions);
+    const quality = segmenter.analyzeQuality(imageData);
+
+    expect(quality.warnings.some(w => w.includes('aspect ratio'))).toBe(true);
+  });
+
+  it('reports correct line count', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    const linePositions = [
+      { start: 20, end: 40 },
+      { start: 70, end: 90 },
+      { start: 120, end: 140 },
+    ];
+    const imageData = createTestImageWithLines(200, 180, linePositions);
+    const quality = segmenter.analyzeQuality(imageData);
+
+    expect(quality.lineCount).toBe(3);
+  });
+});
+
+describe('LineSegmenter improved multiline detection', () => {
+  it('treats very wide single lines as single-line (aspect ratio > 12)', () => {
+    const segmenter = new LineSegmenter();
+    // 600px wide x 40px tall = aspect ratio of 15
+    const linePositions = [{ start: 10, end: 30 }];
+    const imageData = createTestImageWithLines(600, 40, linePositions);
+
+    expect(segmenter.isMultiline(imageData)).toBe(false);
+  });
+
+  it('treats moderately wide images with single line as single-line', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    // 400px wide x 40px tall = aspect ratio of 10
+    const linePositions = [{ start: 10, end: 30 }];
+    const imageData = createTestImageWithLines(400, 40, linePositions);
+
+    expect(segmenter.isMultiline(imageData)).toBe(false);
+  });
+
+  it('requires substantial gaps for multiline detection in wide images', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    // Two lines that are very close together (small gap)
+    const linePositions = [
+      { start: 10, end: 25 },
+      { start: 28, end: 43 }, // Only 2px gap
+    ];
+    const imageData = createTestImageWithLines(400, 55, linePositions);
+
+    // Should NOT be detected as multiline due to tiny gap
+    expect(segmenter.isMultiline(imageData)).toBe(false);
+  });
+
+  it('correctly detects multiline with substantial gaps', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    // Two lines with good spacing
+    const linePositions = [
+      { start: 20, end: 40 },
+      { start: 70, end: 90 }, // 29px gap
+    ];
+    const imageData = createTestImageWithLines(200, 120, linePositions);
+
+    expect(segmenter.isMultiline(imageData)).toBe(true);
+  });
+
+  it('respects singleLineAspectRatio option', () => {
+    const segmenter = new LineSegmenter({ singleLineAspectRatio: 20 });
+    // 700px wide x 50px tall = aspect ratio of 14
+    // With default (12), this would be single-line
+    // With singleLineAspectRatio: 20, it needs projection analysis
+    const linePositions = [{ start: 15, end: 35 }];
+    const imageData = createTestImageWithLines(700, 50, linePositions);
+
+    // Should still detect as single line based on projection
+    expect(segmenter.isMultiline(imageData)).toBe(false);
+  });
+});
+
+describe('LineSegmenter padding for TrOCR', () => {
+  it('applies generous vertical padding by default', () => {
+    const segmenter = new LineSegmenter({ adaptiveThreshold: false });
+    const linePositions = [{ start: 50, end: 70 }];
+    const imageData = createTestImageWithLines(200, 120, linePositions);
+    const segments = segmenter.detectLines(imageData);
+
+    expect(segments.length).toBe(1);
+    // With default vertical padding (6) + proportional (~3), segment should extend
+    expect(segments[0]!.top).toBeLessThan(50);
+    expect(segments[0]!.bottom).toBeGreaterThan(70);
+  });
+
+  it('applies proportional padding based on line height', () => {
+    const segmenter = new LineSegmenter({
+      verticalPadding: 0,
+      proportionalPadding: 0.2, // 20% of line height
+      horizontalPadding: 0,
+      adaptiveThreshold: false,
+    });
+
+    const linePositions = [{ start: 50, end: 70 }]; // 21px line height
+    const imageData = createTestImageWithLines(200, 120, linePositions);
+    const segments = segmenter.detectLines(imageData);
+
+    expect(segments.length).toBe(1);
+    // 20% of ~20px = ~4px padding each side, so ~8px total added
+    const lineHeight = segments[0]!.height;
+    expect(lineHeight).toBeGreaterThan(20);
+    expect(lineHeight).toBeLessThan(35); // Reasonable padding range
+  });
+
+  it('crops with horizontal padding to preserve edge characters', () => {
+    const segmenter = new LineSegmenter({
+      verticalPadding: 0,
+      proportionalPadding: 0,
+      horizontalPadding: 10,
+      adaptiveThreshold: false,
+    });
+
+    const linePositions = [{ start: 40, end: 60 }];
+    const imageData = createTestImageWithLines(200, 100, linePositions);
+    const extractedLines = segmenter.extractLines(imageData);
+
+    // Should have extracted one line
+    expect(extractedLines.length).toBe(1);
+    // Line width should be full width since we crop horizontally to content
+    expect(extractedLines[0]!.width).toBe(200);
   });
 });

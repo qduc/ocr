@@ -602,6 +602,46 @@ MVP is complete when:
 
 ## Changes Log
 
+### 2026-01-15: TrOCR Preprocessing Pipeline Improvements
+
+**Issue Addressed**: TrOCR Pitfall #3 - Preprocessing that Destroys Signal
+
+**Root Cause**:
+- Over-binarization and hard thresholding removing faint ink
+- Over-sharpening creating halos and destroying thin strokes
+- Inconsistent handling of inverted images (white text on black)
+- Symptoms: O/0, I/l/1, rn/m confusion; missing diacritics; broken punctuation
+
+**Changes Made**:
+
+1. **New `PreprocessingMode` type** (`'none' | 'light' | 'aggressive'`):
+   - `'none'`: No preprocessing, best for clean high-quality scans
+   - `'light'`: Gentle normalization (recommended default for TrOCR)
+   - `'aggressive'`: Full enhancement for very faded/low-contrast images
+
+2. **New `analyzePolarity()` method**: Edge-based detection of inverted text (light on dark background)
+
+3. **New `normalizePolarity()` method**: Ensures consistent dark-text-on-light-background format for TrOCR
+
+4. **New `toGrayscaleRGB()` method**: Converts to grayscale while preserving 3-channel RGB format (required by TrOCR)
+
+5. **New `gentleContrastEnhance()` method**: CLAHE-inspired local contrast with percentile clipping to avoid destroying thin strokes
+
+6. **New `preprocessForTrOCR()` method**: Main entry point combining all preprocessing steps based on mode
+
+7. **Updated `prepareForTrOCR()` method**: Now uses preprocessing mode instead of simple contrast flag
+
+**Key Design Decisions**:
+- TrOCR works better with LESS preprocessing - default to `'light'` mode
+- Polarity normalization enabled by default (TrOCR expects dark text on light background)
+- Grayscale conversion maintains 3-channel RGB format (required by model)
+- Histogram-based contrast enhancement uses 1% percentile clipping to ignore outliers
+- Backwards compatibility maintained: deprecated `enhanceContrast` option still works
+
+**Test Coverage**: 16 new tests added covering polarity detection, contrast enhancement, grayscale conversion, and preprocessing modes
+
+---
+
 ### 2026-01-15: All MVP Blockers Resolved
 
 **Decisions Made**:

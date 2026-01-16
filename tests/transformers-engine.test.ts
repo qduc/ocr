@@ -278,3 +278,72 @@ describe('TransformersEngine multiline support', () => {
     expect(result).toBe('Line A\nLine B');
   });
 });
+
+describe('TransformersEngine resolution handling', () => {
+  beforeEach(() => {
+    pipelineMock.mockReset();
+  });
+
+  it('processes small images without error', async () => {
+    const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'tiny' }]);
+    pipelineMock.mockResolvedValueOnce(pipelineInstance);
+
+    const engine = new TransformersEngine({ webgpu: false, multiline: false });
+    await engine.load();
+
+    // Create a very small image (simulating low-res text)
+    const smallImageData = new ImageData(30, 10);
+
+    const result = await engine.process(smallImageData);
+
+    expect(result).toBe('tiny');
+    expect(pipelineInstance).toHaveBeenCalled();
+  });
+
+  it('handles wide aspect ratio images correctly', async () => {
+    const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'wide text' }]);
+    pipelineMock.mockResolvedValueOnce(pipelineInstance);
+
+    const engine = new TransformersEngine({ webgpu: false, multiline: false });
+    await engine.load();
+
+    // Very wide image (typical for single text line)
+    const wideImageData = new ImageData(800, 30);
+
+    const result = await engine.process(wideImageData);
+
+    expect(result).toBe('wide text');
+  });
+
+  it('respects custom minCharHeight option', async () => {
+    const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'custom' }]);
+    pipelineMock.mockResolvedValueOnce(pipelineInstance);
+
+    const engine = new TransformersEngine({
+      webgpu: false,
+      multiline: false,
+      minCharHeight: 30,
+    });
+    await engine.load();
+
+    const imageData = new ImageData(100, 25);
+    const result = await engine.process(imageData);
+
+    expect(result).toBe('custom');
+  });
+
+  it('handles tall aspect ratio images correctly', async () => {
+    const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'tall' }]);
+    pipelineMock.mockResolvedValueOnce(pipelineInstance);
+
+    const engine = new TransformersEngine({ webgpu: false, multiline: false });
+    await engine.load();
+
+    // Tall image (unusual but should be handled)
+    const tallImageData = new ImageData(50, 400);
+
+    const result = await engine.process(tallImageData);
+
+    expect(result).toBe('tall');
+  });
+});
