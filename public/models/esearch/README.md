@@ -2,6 +2,10 @@
 
 This directory contains the PaddleOCR model files required by the eSearch-OCR engine.
 
+## Automation
+
+These files are automatically downloaded when you run `npm install`. The logic is handled by `scripts/download-models.js`.
+
 ## Required Files
 
 | File | Description | Approximate Size |
