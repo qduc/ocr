@@ -120,6 +120,6 @@ describe('Engine selection unit tests', () => {
     select.dispatchEvent(new Event('change'));
 
     await Promise.resolve();
-    expect(setEngine).toHaveBeenCalledWith('transformers');
+    expect(setEngine).toHaveBeenCalledWith('transformers', { language: 'english' });
   });
 });

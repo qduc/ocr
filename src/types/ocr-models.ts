@@ -27,10 +27,10 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
   esearch: {
     id: 'esearch',
     name: 'eSearch-OCR (PaddleOCR)',
-    description: 'High-accuracy OCR for Chinese and English text',
+    description: 'High-accuracy OCR for multiple languages via PaddleOCR',
     requiresWebGPU: false,
     estimatedModelSize: 12,
-    supportedLanguages: ['chi_sim', 'eng'],
+    supportedLanguages: ['chi_sim', 'eng', 'ara', 'kor', 'tel', 'tam', 'tha', 'hin'],
   },
 };
 

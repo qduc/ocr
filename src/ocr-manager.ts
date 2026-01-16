@@ -9,13 +9,13 @@ export class OCRManager {
     this.factory = factory;
   }
 
-  async setEngine(id: string): Promise<void> {
+  async setEngine(id: string, options?: { language?: string }): Promise<void> {
     if (this.activeEngine) {
       await this.activeEngine.destroy();
       this.activeEngine = null;
     }
 
-    const engine = await this.factory.create(id);
+    const engine = await this.factory.create(id, options);
     this.activeEngine = engine;
     await engine.load();
   }

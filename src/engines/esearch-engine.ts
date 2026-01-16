@@ -9,6 +9,7 @@ import type {
   ESearchInitOptions,
 } from '@/types/esearch-types';
 import { extractTextFromESearchOutput } from '@/types/esearch-types';
+import { getHuggingFaceModelUrls } from '@/utils/language-config';
 
 /**
  * Type-safe wrapper for esearch-ocr init function.
@@ -33,8 +34,11 @@ export interface ESearchEngineOptions {
   /** Progress callback for model loading and processing */
   onProgress?: ESearchProgressCallback;
 
-  /** Model file URLs or paths */
-  modelPaths: ESearchModelPaths;
+  /**
+   * Model file URLs or paths.
+   * If language is provided, these will be used as fallbacks or overrides.
+   */
+  modelPaths?: ESearchModelPaths;
 
   /**
    * Optimize English space recognition.
@@ -42,6 +46,12 @@ export interface ESearchEngineOptions {
    * @default true
    */
   optimizeSpace?: boolean;
+
+  /**
+   * Language code to fetch from Hugging Face.
+   * Overrides modelPaths if provided.
+   */
+  language?: string;
 }
 
 /**
@@ -53,11 +63,7 @@ export interface ESearchEngineOptions {
  * @example
  * ```typescript
  * const engine = new ESearchEngine({
- *   modelPaths: {
- *     det: '/models/esearch/det.onnx',
- *     rec: '/models/esearch/rec.onnx',
- *     dict: '/models/esearch/ppocr_keys_v1.txt',
- *   },
+ *   language: 'english',
  *   onProgress: (status, progress) => console.log(status, progress),
  * });
  *
@@ -81,7 +87,16 @@ export class ESearchEngine implements IOCREngine {
    */
   constructor(options: ESearchEngineOptions) {
     this.onProgress = options.onProgress;
-    this.modelPaths = options.modelPaths;
+
+    if (options.language) {
+      this.modelPaths = getHuggingFaceModelUrls(options.language);
+    } else if (options.modelPaths) {
+      this.modelPaths = options.modelPaths;
+    } else {
+      // Default to English from Hugging Face if nothing else specified
+      this.modelPaths = getHuggingFaceModelUrls('english');
+    }
+
     this.optimizeSpace = options.optimizeSpace ?? true;
   }
 

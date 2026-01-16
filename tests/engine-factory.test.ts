@@ -85,6 +85,25 @@ describe('EngineFactory unit tests', () => {
 
     await expect(factory.create('tesseract')).rejects.toThrow('Engine id mismatch');
   });
+
+  it('passes options to the creator function', async () => {
+    const factory = new EngineFactory();
+    let passedLanguage: string | undefined;
+
+    factory.register('esearch', (options) => {
+      passedLanguage = options?.language;
+      return {
+        id: 'esearch',
+        isLoading: false,
+        load: (): Promise<void> => Promise.resolve(),
+        process: (): Promise<string> => Promise.resolve(''),
+        destroy: (): Promise<void> => Promise.resolve(),
+      };
+    });
+
+    await factory.create('esearch', { language: 'chinese' });
+    expect(passedLanguage).toBe('chinese');
+  });
 });
 
 describe('EngineFactory eSearch engine tests', () => {
