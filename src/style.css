@@ -298,7 +298,6 @@ p {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  overflow: hidden;
 }
 
 .ocr-box {
@@ -339,6 +338,15 @@ p {
 .ocr-box:hover::after {
   opacity: 1;
   transform: translateY(-4px);
+}
+.ocr-box.at-top::after {
+  bottom: auto;
+  top: 100%;
+  transform: translateY(-4px);
+}
+
+.ocr-box.at-top:hover::after {
+  transform: translateY(4px);
 }
 @keyframes fade-in {
   from {

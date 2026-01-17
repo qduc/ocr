@@ -184,6 +184,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let activeLanguage: string | null = null;
   let currentPreviewUrl: string | null = null;
   let lastResult: OCRResult | null = null;
+  let lastProcessedWidth: number = 0;
+  let lastProcessedHeight: number = 0;
 
   const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
@@ -429,6 +431,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const result = await ocrManager.run(processed);
       setProcessMetric(performance.now() - processStart);
       lastResult = result;
+      lastProcessedWidth = processed.width;
+      lastProcessedHeight = processed.height;
 
       output.textContent = result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
       if (result.items && result.items.length > 0) {
@@ -482,6 +486,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         box.style.height = `${item.boundingBox.height * scaleY}px`;
         box.title = `${item.text} (${Math.round(item.confidence * 100)}%)`;
         box.setAttribute('data-text', item.text);
+        const topPos = item.boundingBox.y * scaleY;
+        if (topPos < 32) {
+          box.classList.add('at-top');
+        }
         ocrOverlay.appendChild(box);
       });
     };
@@ -494,11 +502,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   };
 
   window.addEventListener('resize', (): void => {
-    if (lastResult?.items) {
-      // Re-draw boxes on resize to match new image dimensions
-      // We need to know which image data was used.
-      // This is a bit tricky if we don't store the processed dimensions.
-      // For now, let's just clear or try to update if we have the info.
+    if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
+      drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
     }
   });
 
