@@ -22,7 +22,7 @@ if (typeof ImageData === 'undefined') {
     }
   }
 
-  // @ts-expect-error - test environment polyfill
+  // @ts-ignore - test environment polyfill
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
@@ -51,7 +51,7 @@ describe('ImageProcessor property tests', () => {
         fc.constantFrom('image/jpeg', 'image/png', 'image/webp', 'image/bmp'),
         async (type) => {
           const file = new File([new Uint8Array([0])], 'test', { type });
-          const data = await processor.fileToImageData(file);
+          const data = await processor.sourceToImageData(file);
           expect(data).toBeInstanceOf(ImageData);
         }
       ),
@@ -134,7 +134,7 @@ describe('ImageProcessor unit tests', () => {
   it('throws for unsupported formats', async () => {
     const { processor } = createProcessor();
     const file = new File([new Uint8Array([0])], 'test.txt', { type: 'text/plain' });
-    await expect(processor.fileToImageData(file)).rejects.toThrow('Unsupported image format');
+    await expect(processor.sourceToImageData(file)).rejects.toThrow('Unsupported image format');
   });
 
   it('throws when image decoding fails', async () => {
@@ -150,6 +150,6 @@ describe('ImageProcessor unit tests', () => {
     });
 
     const file = new File([new Uint8Array([0])], 'test.png', { type: 'image/png' });
-    await expect(processor.fileToImageData(file)).rejects.toThrow('Decode failed');
+    await expect(processor.sourceToImageData(file)).rejects.toThrow('Decode failed');
   });
 });

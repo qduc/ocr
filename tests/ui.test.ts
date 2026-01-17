@@ -28,7 +28,7 @@ if (typeof ImageData === 'undefined') {
     }
   }
 
-  // @ts-expect-error - test environment polyfill
+  // @ts-ignore - test environment polyfill
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
@@ -53,7 +53,7 @@ const createSupportedDetector = (): FeatureDetector =>
 
 const createImageProcessorStub = (): ImageProcessor =>
   ({
-    fileToImageData: vi.fn((): Promise<ImageData> => Promise.resolve(new ImageData(100, 100))),
+    sourceToImageData: vi.fn((): Promise<ImageData> => Promise.resolve(new ImageData(100, 100))),
     resize: vi.fn((data: ImageData) => data),
     preprocess: vi.fn((data: ImageData) => data),
   }) as unknown as ImageProcessor;

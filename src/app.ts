@@ -526,6 +526,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     const file = fileInput.files?.[0];
     if (file) {
       loadImage(file);
+    } else {
+      imagePreviewContainer.classList.add('hidden');
+      selectedSource = null;
+      fileMeta.textContent = 'No file selected.';
+      output.textContent = 'Upload an image to begin.';
     }
   });
 
