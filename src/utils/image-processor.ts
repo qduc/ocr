@@ -16,12 +16,12 @@ export class ImageProcessor {
     this.env = env;
   }
 
-  async fileToImageData(file: File): Promise<ImageData> {
-    if (!SUPPORTED_TYPES.has(file.type)) {
-      throw new Error(`Unsupported image format: ${file.type || 'unknown'}`);
+  async sourceToImageData(source: Blob | string): Promise<ImageData> {
+    if (source instanceof Blob && source.type && !SUPPORTED_TYPES.has(source.type)) {
+      throw new Error(`Unsupported image format: ${source.type || 'unknown'}`);
     }
 
-    const bitmap = await this.loadImageBitmap(file);
+    const bitmap = await this.loadBitmap(source);
     const canvas = this.createCanvas(bitmap.width, bitmap.height);
     const context = this.getContext(canvas);
 
@@ -87,9 +87,9 @@ export class ImageProcessor {
     return context.getImageData(0, 0, targetWidth, targetHeight);
   }
 
-  private async loadImageBitmap(file: File): Promise<ImageBitmap> {
-    if (this.env.createImageBitmap) {
-      return await this.env.createImageBitmap(file);
+  private async loadBitmap(source: Blob | string): Promise<ImageBitmap> {
+    if (this.env.createImageBitmap && source instanceof Blob) {
+      return await this.env.createImageBitmap(source);
     }
 
     const ImageConstructor = this.env.Image ?? globalThis.Image;
@@ -102,15 +102,21 @@ export class ImageProcessor {
 
     return await new Promise<ImageBitmap>((resolve, reject) => {
       const image = new ImageConstructor();
-      const objectUrl = urlApi.createObjectURL(file);
+      image.crossOrigin = 'anonymous';
+      const isUrl = typeof source === 'string';
+      const objectUrl = isUrl ? source : urlApi.createObjectURL(source);
 
       image.onload = (): void => {
-        urlApi.revokeObjectURL(objectUrl);
+        if (!isUrl) {
+          urlApi.revokeObjectURL(objectUrl);
+        }
         resolve(image as unknown as ImageBitmap);
       };
 
       image.onerror = (): void => {
-        urlApi.revokeObjectURL(objectUrl);
+        if (!isUrl) {
+          urlApi.revokeObjectURL(objectUrl);
+        }
         reject(new Error('Failed to decode image.'));
       };
 

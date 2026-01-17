@@ -43,6 +43,9 @@ export interface AppInstance {
     loadMetric: HTMLDivElement;
     processMetric: HTMLDivElement;
     imagePreviewContainer: HTMLDivElement;
+    urlInput: HTMLInputElement;
+    loadUrlButton: HTMLButtonElement;
+    pasteArea: HTMLDivElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -81,8 +84,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
       <main class="main-grid">
         <section class="panel upload-panel">
-          <h2>1. Choose an image</h2>
-          <p class="panel-subtitle">JPEG, PNG, WebP, or BMP. We will preprocess for better accuracy.</p>
+          <h2>1. Settings & Source</h2>
           <div class="engine-select">
             <label for="engine-select">OCR engine</label>
             <select id="engine-select"></select>
@@ -92,14 +94,33 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             <label for="language-select">Language</label>
             <select id="language-select"></select>
           </div>
-          <div class="file-input">
-            <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
-            <div id="file-meta" class="file-meta">No file selected.</div>
-            <div id="image-preview-container" class="image-preview-container hidden">
-              <div id="preview-wrapper" class="preview-wrapper">
-                <img id="image-preview" class="image-preview" src="" alt="Preview" />
-                <div id="ocr-overlay" class="ocr-overlay"></div>
+
+          <div class="input-methods">
+            <div class="file-input">
+              <label for="file-input" class="method-label">Upload File</label>
+              <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
+              <div id="file-meta" class="file-meta">No file selected.</div>
+            </div>
+
+            <div class="url-input">
+              <label for="url-input" class="method-label">Image URL</label>
+              <div class="url-row">
+                <input id="url-input" type="url" placeholder="https://example.com/image.jpg" />
+                <button id="load-url-button" class="icon-button" title="Load image from URL">
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
               </div>
+            </div>
+
+            <div id="paste-area" class="paste-area">
+              <span>Paste image from clipboard (Ctrl+V)</span>
+            </div>
+          </div>
+
+          <div id="image-preview-container" class="image-preview-container hidden">
+            <div id="preview-wrapper" class="preview-wrapper">
+              <img id="image-preview" class="image-preview" src="" alt="Preview" />
+              <div id="ocr-overlay" class="ocr-overlay"></div>
             </div>
           </div>
           <button id="run-button" class="primary-button" type="button">Extract text</button>
@@ -162,6 +183,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const modalImage = root.querySelector<HTMLImageElement>('#modal-image');
   const closeModal = root.querySelector<HTMLSpanElement>('#close-modal');
   const ocrOverlayModal = root.querySelector<HTMLDivElement>('#ocr-overlay-modal');
+  const urlInput = root.querySelector<HTMLInputElement>('#url-input');
+  const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
+  const pasteArea = root.querySelector<HTMLDivElement>('#paste-area');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
 
   if (
@@ -190,7 +214,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !modalImage ||
     !closeModal ||
     !ocrOverlayModal ||
-    !copyOutputButton
+    !copyOutputButton ||
+    !urlInput ||
+    !loadUrlButton ||
+    !pasteArea
   ) {
     throw new Error('UI elements missing.');
   }
@@ -202,7 +229,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const imageProcessor = options.imageProcessor ?? new ImageProcessor();
   const engineFactory = options.engineFactory ?? new EngineFactory();
   const ocrManager = options.ocrManager ?? new OCRManager(engineFactory);
-  let selectedFile: File | null = null;
+  let selectedSource: Blob | string | null = null;
   let engineReady = false;
   let selectedEngineId: string | null = null;
   const selectedLanguages: Record<string, string> = {
@@ -456,33 +483,100 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     setStage('idle', 'Ready for upload', 0);
   }
 
-  fileInput.addEventListener('change', (): void => {
+  const loadImage = (source: Blob | string): void => {
     if (currentPreviewUrl) {
       URL.revokeObjectURL(currentPreviewUrl);
       currentPreviewUrl = null;
     }
 
-    selectedFile = fileInput.files?.[0] ?? null;
-    fileMeta.textContent = selectedFile
-      ? `${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB)`
-      : 'No file selected.';
-    output.textContent = selectedFile
-      ? 'Image loaded. Click extract to run OCR.'
-      : 'Upload an image to begin.';
+    selectedSource = source;
 
-    if (selectedFile) {
-      currentPreviewUrl = URL.createObjectURL(selectedFile);
-      imagePreview.src = currentPreviewUrl;
-      imagePreviewContainer.classList.remove('hidden');
-      ocrOverlay.innerHTML = '';
-      lastResult = null;
-      copyOutputButton.classList.add('hidden');
+    if (source instanceof File) {
+      fileMeta.textContent = `${source.name} (${Math.round(source.size / 1024)} KB)`;
+    } else if (source instanceof Blob) {
+      fileMeta.textContent = `Pasted image (${Math.round(source.size / 1024)} KB)`;
     } else {
-      imagePreview.src = '';
+      fileMeta.textContent = `URL: ${source.substring(0, 30)}${source.length > 30 ? '...' : ''}`;
+    }
+
+    output.textContent = 'Image loaded. Click extract to run OCR.';
+
+    if (source instanceof Blob) {
+      currentPreviewUrl = URL.createObjectURL(source);
+      imagePreview.src = currentPreviewUrl;
+    } else {
+      imagePreview.src = source;
+    }
+
+    imagePreviewContainer.classList.remove('hidden');
+    ocrOverlay.innerHTML = '';
+    lastResult = null;
+    copyOutputButton.classList.add('hidden');
+  };
+
+  imagePreview.addEventListener('error', (): void => {
+    if (imagePreview.getAttribute('src')) {
+      setError(createInvalidImageError('Failed to load image. Check the URL or file format.'));
       imagePreviewContainer.classList.add('hidden');
-      ocrOverlay.innerHTML = '';
-      lastResult = null;
-      copyOutputButton.classList.add('hidden');
+      selectedSource = null;
+    }
+  });
+
+  fileInput.addEventListener('change', (): void => {
+    const file = fileInput.files?.[0];
+    if (file) {
+      loadImage(file);
+    }
+  });
+
+  loadUrlButton.addEventListener('click', (): void => {
+    const url = urlInput.value.trim();
+    if (url) {
+      loadImage(url);
+    }
+  });
+
+  urlInput.addEventListener('keypress', (e: KeyboardEvent): void => {
+    if (e.key === 'Enter') {
+      const url = urlInput.value.trim();
+      if (url) {
+        loadImage(url);
+      }
+    }
+  });
+
+  const handlePaste = (e: ClipboardEvent): void => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (blob) {
+          loadImage(blob);
+          break;
+        }
+      }
+    }
+  };
+
+  document.addEventListener('paste', handlePaste);
+
+  pasteArea.addEventListener('dragover', (e): void => {
+    e.preventDefault();
+    pasteArea.classList.add('drag-over');
+  });
+
+  pasteArea.addEventListener('dragleave', (): void => {
+    pasteArea.classList.remove('drag-over');
+  });
+
+  pasteArea.addEventListener('drop', (e): void => {
+    e.preventDefault();
+    pasteArea.classList.remove('drag-over');
+    const file = e.dataTransfer?.files[0];
+    if (file && file.type.startsWith('image/')) {
+      loadImage(file);
     }
   });
 
@@ -509,8 +603,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   const runOcr = async (): Promise<void> => {
     clearError();
-    if (!selectedFile) {
-      setError(createInvalidImageError('Select an image file before running OCR.'));
+    if (!selectedSource) {
+      setError(createInvalidImageError('Select an image file, enter a URL, or paste an image before running OCR.'));
       return;
     }
 
@@ -532,7 +626,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       }
 
       setStage('processing', 'Processing image...', 100);
-      const imageData = await imageProcessor.fileToImageData(selectedFile);
+      const imageData = await imageProcessor.sourceToImageData(selectedSource);
       const resized = imageProcessor.resize(imageData, 2000);
       const processed =
         selectedEngineId === 'transformers' ? resized : imageProcessor.preprocess(resized);
@@ -558,7 +652,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       } else if (error instanceof Error && error.message.includes('Unsupported image format')) {
         setError(createInvalidImageError(error.message));
       } else if (error instanceof Error && error.message.includes('decode')) {
-        setError(createInvalidImageError('Image decoding failed. Try a different file.'));
+        setError(createInvalidImageError('Image decoding failed. Try a different source.'));
       } else {
         setError(createProcessingFailedError(error instanceof Error ? error.message : undefined));
       }
@@ -723,6 +817,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       loadMetric,
       processMetric,
       imagePreviewContainer,
+      urlInput,
+      loadUrlButton,
+      pasteArea,
     },
     setStage,
   };
