@@ -22,7 +22,7 @@ if (typeof ImageData === 'undefined') {
     }
   }
 
-  // @ts-ignore - test environment polyfill
+  // @ts-expect-error - test environment polyfill
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
