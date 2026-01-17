@@ -3,7 +3,7 @@ import path from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig({
-  base: './',
+  base: process.env.VITE_BASE_URL || '/',
   plugins: [
     viteStaticCopy({
       targets: [

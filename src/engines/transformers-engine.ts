@@ -40,7 +40,7 @@ export class TransformersEngine implements IOCREngine {
     try {
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
-      env.localModelPath = '/transformers-models/';
+      env.localModelPath = import.meta.env.BASE_URL + 'transformers-models/';
       env.useBrowserCache = true;
 
       // If Transformers is using the onnxruntime-web WASM backend, ensure it fetches
@@ -55,11 +55,10 @@ export class TransformersEngine implements IOCREngine {
         };
       };
       if (envWithOnnx.backends?.onnx?.wasm && !envWithOnnx.backends.onnx.wasm.wasmPaths) {
-        // Use an absolute URL to prevent Vite from trying to process these files as modules.
-        // Vite warns when "importing" files from /public in dev mode.
-        // Use self.location.origin to work in both main thread and workers.
-        const origin = typeof self !== 'undefined' ? self.location.origin : window.location.origin;
-        envWithOnnx.backends.onnx.wasm.wasmPaths = origin + '/onnxruntime-web/';
+        // Use the base URL from Vite to ensure it works in subdirectories (like GitHub Pages).
+        // import.meta.env.BASE_URL is provided by Vite at build time.
+        const baseUrl = import.meta.env.BASE_URL;
+        envWithOnnx.backends.onnx.wasm.wasmPaths = baseUrl + 'onnxruntime-web/';
       }
 
       const device = this.isWebGPUSupported() ? 'webgpu' : 'cpu';

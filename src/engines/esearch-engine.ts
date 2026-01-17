@@ -164,11 +164,10 @@ export class ESearchEngine implements IOCREngine {
   private configureOnnxRuntime(): void {
     // Only set this if the app hasn't already configured a custom path.
     if (!ort.env.wasm.wasmPaths) {
-      // Use an absolute URL to prevent Vite from trying to process these files as modules.
-      // Vite warns when "importing" files from /public in dev mode.
-      // Use self.location.origin to work in both main thread and workers.
-      const baseUrl = (typeof self !== 'undefined' ? self.location.origin : window.location.origin) + '/onnxruntime-web/';
-      ort.env.wasm.wasmPaths = baseUrl;
+      // Use the base URL from Vite to ensure it works in subdirectories (like GitHub Pages).
+      // import.meta.env.BASE_URL is provided by Vite at build time.
+      const baseUrl = import.meta.env.BASE_URL;
+      ort.env.wasm.wasmPaths = baseUrl + 'onnxruntime-web/';
     }
   }
 
