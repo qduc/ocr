@@ -6,6 +6,7 @@ import type { FeatureDetector } from '../src/utils/feature-detector';
 import type { ImageProcessor } from '../src/utils/image-processor';
 import type { OCRManager } from '../src/ocr-manager';
 import { OCRError, OCRErrorCode } from '../src/types/ocr-errors';
+import type { OCRResult } from '../src/types/ocr-engine';
 
 if (typeof ImageData === 'undefined') {
   class ImageDataPolyfill {
@@ -60,6 +61,16 @@ const attachFile = (input: HTMLInputElement, file: File): void => {
   Object.defineProperty(input, 'files', {
     value: [file],
     writable: false,
+    configurable: true,
+  });
+  input.dispatchEvent(new Event('change'));
+};
+
+const clearFileInput = (input: HTMLInputElement): void => {
+  Object.defineProperty(input, 'files', {
+    value: [],
+    writable: false,
+    configurable: true,
   });
   input.dispatchEvent(new Event('change'));
 };
@@ -69,7 +80,7 @@ const registerTestEngine = (factory: { register: (id: string, creator: () => unk
     id: 'tesseract',
     isLoading: false,
     load: (): Promise<void> => Promise.resolve(),
-    process: (): Promise<string> => Promise.resolve(''),
+    process: (): Promise<OCRResult> => Promise.resolve({ text: '' }),
     destroy: (): Promise<void> => Promise.resolve(),
   }));
 };
@@ -112,7 +123,7 @@ describe('UI property tests', () => {
         const imageProcessor = createImageProcessorStub();
         const ocrManager = {
           setEngine: vi.fn((): Promise<void> => Promise.resolve()),
-          run: vi.fn((): Promise<string> => Promise.resolve(text)),
+          run: vi.fn((): Promise<OCRResult> => Promise.resolve({ text })),
         } as unknown as OCRManager;
 
         const app = initApp({
@@ -132,6 +143,32 @@ describe('UI property tests', () => {
       { numRuns: 15 }
     );
   });
+
+  it('hides image preview when no file is selected', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const app = initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
+      registerEngines: (factory) => registerTestEngine(factory),
+    });
+
+    // Initial state: hidden
+    expect(app.elements.imagePreviewContainer.classList.contains('hidden')).toBe(true);
+
+    // Select a file: should be visible
+    const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
+    attachFile(app.elements.fileInput, file);
+    expect(app.elements.imagePreviewContainer.classList.contains('hidden')).toBe(false);
+
+    // Clear selection: should be hidden again
+    clearFileInput(app.elements.fileInput);
+    expect(app.elements.imagePreviewContainer.classList.contains('hidden')).toBe(true);
+  });
 });
 
 describe('UI integration tests', () => {
@@ -144,7 +181,7 @@ describe('UI integration tests', () => {
     const imageProcessor = createImageProcessorStub();
     const ocrManager = {
       setEngine: vi.fn((): Promise<void> => Promise.resolve()),
-      run: vi.fn((): Promise<string> => Promise.resolve('Detected text')),
+      run: vi.fn((): Promise<OCRResult> => Promise.resolve({ text: 'Detected text' })),
     } as unknown as OCRManager;
 
     const app = initApp({
@@ -176,7 +213,7 @@ describe('UI integration tests', () => {
       run: vi
         .fn()
         .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce('Recovered text'),
+        .mockResolvedValueOnce({ text: 'Recovered text' }),
     } as unknown as OCRManager;
 
     const app = initApp({
@@ -212,7 +249,7 @@ describe('UI integration tests', () => {
             resolveEngine = resolve;
           })
       ),
-      run: vi.fn((): Promise<string> => Promise.resolve('Later text')),
+      run: vi.fn((): Promise<OCRResult> => Promise.resolve({ text: 'Later text' })),
     } as unknown as OCRManager;
 
     const app = initApp({

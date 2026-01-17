@@ -269,9 +269,6 @@ p {
   color: var(--ink-2);
 }
 
-.hidden {
-  display: none;
-}
 
 .image-preview-container {
   width: 100%;
@@ -366,4 +363,8 @@ p {
   .hero {
     gap: 16px;
   }
+}
+
+.hidden {
+  display: none !important;
 }

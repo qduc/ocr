@@ -42,6 +42,7 @@ export interface AppInstance {
     progressText: HTMLDivElement;
     loadMetric: HTMLDivElement;
     processMetric: HTMLDivElement;
+    imagePreviewContainer: HTMLDivElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -518,6 +519,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       progressText,
       loadMetric,
       processMetric,
+      imagePreviewContainer,
     },
     setStage,
   };
