@@ -10,6 +10,7 @@ import type {
 } from '@/types/esearch-types';
 import { extractTextFromESearchOutput, mapESearchResultToStandard } from '@/types/esearch-types';
 import { getHuggingFaceModelUrls } from '@/utils/language-config';
+import { ModelCache } from '@/utils/model-cache';
 
 /**
  * Type-safe wrapper for esearch-ocr init function.
@@ -220,19 +221,25 @@ export class ESearchEngine implements IOCREngine {
     }
   }
 
+  // Persistent cache for models and dictionary files
+  private static cache = new ModelCache({ dbName: 'ocr-model-cache', storeName: 'files' });
+
   /**
    * Fetches a model file and returns it as an ArrayBuffer.
+   * Uses persistent caching to avoid redownloading the same model.
    * @param url URL or path to the model file
    * @returns ArrayBuffer containing the model data
    * @throws Error if fetch fails
    */
   private async fetchModelAsArrayBuffer(url: string): Promise<ArrayBuffer> {
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      return await response.arrayBuffer();
+      return await ESearchEngine.cache.loadOrFetch(url, async () => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.arrayBuffer();
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to fetch model from ${url}: ${message}`);
@@ -241,17 +248,22 @@ export class ESearchEngine implements IOCREngine {
 
   /**
    * Fetches a text file (e.g., dictionary) and returns its content.
+   * Uses persistent caching to avoid redownloading the same file.
    * @param url URL or path to the text file
    * @returns Text content of the file
    * @throws Error if fetch fails
    */
   private async fetchTextFile(url: string): Promise<string> {
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      return await response.text();
+      const buffer = await ESearchEngine.cache.loadOrFetch(url, async () => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const text = await response.text();
+        return new TextEncoder().encode(text).buffer;
+      });
+      return new TextDecoder().decode(buffer);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to fetch dictionary from ${url}: ${message}`);

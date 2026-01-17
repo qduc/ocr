@@ -602,6 +602,17 @@ MVP is complete when:
 
 ## Changes Log
 
+### 2026-01-17: eSearch-OCR Model Caching
+
+**Decision**: Implement persistent caching for eSearch-OCR models using `ModelCache` (IndexedDB).
+
+**Rationale**:
+- Unlike Tesseract.js, `esearch-ocr` implementation does not automatically handle persistent caching of model files.
+- Switching languages or re-initializing the engine triggered redundant network requests.
+- Integrated the existing `ModelCache` utility to store `.onnx` and dictionary files in IndexedDB, preventing re-downloads.
+
+**Status**: ✅ Implemented in `src/engines/esearch-engine.ts`.
+
 ### 2026-01-16: eSearch-OCR Model Hosting Strategy
 
 **Decision**: Host model files locally in `public/models/esearch/` with manual download
