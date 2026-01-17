@@ -12,6 +12,7 @@ type ImageInput =
   | string
   | RawImage;
 type ImageToTextPipeline = (image: ImageInput) => Promise<Array<{ generated_text?: string; text?: string }>>;
+type PipelineOptions = Parameters<typeof pipeline>[2] & { device?: string };
 
 export interface TransformersEngineOptions {
   onProgress?: TransformersProgressCallback;
@@ -62,14 +63,19 @@ export class TransformersEngine implements IOCREngine {
       }
 
       const device = this.isWebGPUSupported() ? 'webgpu' : 'cpu';
-      this.pipelineInstance = (await pipeline('image-to-text', 'Xenova/trocr-base-printed', {
+      const pipelineOptions: PipelineOptions = {
         device,
         progress_callback: (status: { status: string; progress?: number }) => {
           if (this.onProgress) {
             this.onProgress(status.status, status.progress ?? 0);
           }
         },
-      })) as ImageToTextPipeline;
+      };
+      this.pipelineInstance = (await pipeline(
+        'image-to-text',
+        'Xenova/trocr-base-printed',
+        pipelineOptions,
+      )) as ImageToTextPipeline;
     } finally {
       this.isLoading = false;
     }
@@ -107,44 +113,5 @@ export class TransformersEngine implements IOCREngine {
     return typeof navigator !== 'undefined' && typeof (navigator as Navigator & { gpu?: unknown }).gpu !== 'undefined';
   }
 
-  private async imageDataToBlob(imageData: ImageData): Promise<Blob> {
-    const { width, height } = imageData;
-    const canvas = this.createCanvas(width, height);
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-      throw new Error('Canvas 2D context is not available.');
-    }
-
-    context.putImageData(imageData, 0, 0);
-
-    if ('convertToBlob' in canvas) {
-      return await (canvas).convertToBlob({ type: 'image/png' });
-    }
-
-    return await new Promise<Blob>((resolve, reject) => {
-      (canvas).toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('Failed to encode image for OCR.'));
-        }
-      }, 'image/png');
-    });
-  }
-
-  private createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
-    if (typeof document !== 'undefined') {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      return canvas;
-    }
-
-    if (typeof OffscreenCanvas !== 'undefined') {
-      return new OffscreenCanvas(width, height);
-    }
-
-    throw new Error('Canvas creation is not available in this environment.');
-  }
+  // Note: additional canvas helpers removed to keep the engine lean and avoid unused code.
 }

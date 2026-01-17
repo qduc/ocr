@@ -37,9 +37,9 @@ export class ImageProcessor {
   toGrayscale(imageData: ImageData): ImageData {
     const data = new Uint8ClampedArray(imageData.data);
     for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
+      const r = data[i] ?? 0;
+      const g = data[i + 1] ?? 0;
+      const b = data[i + 2] ?? 0;
       const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
       data[i] = gray;
       data[i + 1] = gray;
@@ -54,9 +54,12 @@ export class ImageProcessor {
     const factor = (259 * (clampedContrast * 255 + 255)) / (255 * (259 - clampedContrast * 255));
 
     for (let i = 0; i < data.length; i += 4) {
-      data[i] = this.clamp(factor * (data[i] - 128) + 128);
-      data[i + 1] = this.clamp(factor * (data[i + 1] - 128) + 128);
-      data[i + 2] = this.clamp(factor * (data[i + 2] - 128) + 128);
+      const red = data[i] ?? 0;
+      const green = data[i + 1] ?? 0;
+      const blue = data[i + 2] ?? 0;
+      data[i] = this.clamp(factor * (red - 128) + 128);
+      data[i + 1] = this.clamp(factor * (green - 128) + 128);
+      data[i + 2] = this.clamp(factor * (blue - 128) + 128);
     }
 
     return new ImageData(data, imageData.width, imageData.height);
