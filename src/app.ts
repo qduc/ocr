@@ -340,7 +340,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const { ESearchEngine } = await import('@/engines/esearch-engine');
       return new ESearchEngine({
         language: options?.language,
-        webgpu: webgpuAvailable,
+        webgpu: false, // Force WASM to avoid MaxPool ceil() error in WebGPU
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading eSearch-OCR: ${status}`, percent);
