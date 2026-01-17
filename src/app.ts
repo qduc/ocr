@@ -12,7 +12,7 @@ import {
 import { OCRError } from '@/types/ocr-errors';
 import type { OCRResult } from '@/types/ocr-engine';
 import { ENGINE_CONFIGS } from '@/types/ocr-models';
-import { SUPPORTED_LANGUAGES } from '@/utils/language-config';
+import { SUPPORTED_LANGUAGES, TESSERACT_LANGUAGES } from '@/utils/language-config';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
 
@@ -179,13 +179,45 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let selectedFile: File | null = null;
   let engineReady = false;
   let selectedEngineId: string | null = null;
-  let selectedLanguage: string = 'english';
+  const selectedLanguages: Record<string, string> = {
+    tesseract: 'eng',
+    esearch: 'english',
+  };
   let activeEngineId: string | null = null;
   let activeLanguage: string | null = null;
   let currentPreviewUrl: string | null = null;
   let lastResult: OCRResult | null = null;
   let lastProcessedWidth: number = 0;
   let lastProcessedHeight: number = 0;
+
+  const languageOptionsByEngine: Record<string, Record<string, string>> = {
+    tesseract: TESSERACT_LANGUAGES,
+    esearch: SUPPORTED_LANGUAGES,
+  };
+
+  const supportsLanguageSelection = (engineId: string): boolean =>
+    Boolean(languageOptionsByEngine[engineId]);
+
+  const getLanguageOptions = (engineId: string): Record<string, string> | null =>
+    languageOptionsByEngine[engineId] ?? null;
+
+  const getSelectedLanguage = (engineId: string): string => {
+    const options = getLanguageOptions(engineId);
+    const fallback = selectedLanguages[engineId] ?? (options ? Object.keys(options)[0] : 'eng');
+    const selected = selectedLanguages[engineId] ?? fallback;
+
+    if (options && !(selected in options)) {
+      selectedLanguages[engineId] = fallback;
+      return fallback;
+    }
+
+    return selected;
+  };
+
+  const getLanguageLabel = (engineId: string, language: string): string => {
+    const options = getLanguageOptions(engineId);
+    return options?.[language] ?? language;
+  };
 
   const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
@@ -223,15 +255,19 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
     engineSelect.disabled = busy;
+    languageSelect.disabled = busy;
     runButton.textContent = busy ? 'Working…' : 'Extract text';
   };
 
   const registerDefaultEngines = (): void => {
-    engineFactory.register('tesseract', async () => {
+    engineFactory.register('tesseract', async (options) => {
       const { TesseractEngine } = await import('@/engines/tesseract-engine');
-      return new TesseractEngine((status: string, progress?: number): void => {
-        const percent = Math.round((progress ?? 0) * 100);
-        setStage('loading', `Loading OCR engine: ${status}`, percent);
+      return new TesseractEngine({
+        language: options?.language,
+        onProgress: (status: string, progress?: number): void => {
+          const percent = Math.round((progress ?? 0) * 100);
+          setStage('loading', `Loading OCR engine: ${status}`, percent);
+        },
       });
     });
     engineFactory.register('transformers', async () => {
@@ -256,6 +292,20 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     });
   };
 
+  const formatSupportedLanguages = (engineId: string): string => {
+    const config = ENGINE_CONFIGS[engineId];
+    if (!config) {
+      return '';
+    }
+
+    const options = getLanguageOptions(engineId);
+    if (!options) {
+      return config.supportedLanguages.join(', ');
+    }
+
+    return config.supportedLanguages.map((language) => options[language] ?? language).join(', ');
+  };
+
   const updateEngineDetails = (engineId: string): void => {
     const config = ENGINE_CONFIGS[engineId];
     if (!config) {
@@ -264,7 +314,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
 
     const gpuNote = config.requiresWebGPU && !capabilities.webgpu ? 'WebGPU not detected, CPU fallback in use.' : '';
-    engineDetails.textContent = `${config.description} • ${config.supportedLanguages.join(', ')}${gpuNote ? ` • ${gpuNote}` : ''}`;
+    const languages = formatSupportedLanguages(engineId);
+    engineDetails.textContent = `${config.description} • ${languages}${gpuNote ? ` • ${gpuNote}` : ''}`;
   };
 
   const getStoredEngine = (): string | null => {
@@ -283,15 +334,27 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
-  const populateLanguages = (): void => {
+  const updateLanguageSelection = (engineId: string): void => {
+    const options = getLanguageOptions(engineId);
+    const shouldShow = Boolean(options);
+    languageSelectContainer.classList.toggle('hidden', !shouldShow);
+
+    if (!options) {
+      languageSelect.innerHTML = '';
+      return;
+    }
+
     languageSelect.innerHTML = '';
-    for (const [key, name] of Object.entries(SUPPORTED_LANGUAGES)) {
+    for (const [key, name] of Object.entries(options)) {
       const option = document.createElement('option');
       option.value = key;
       option.textContent = name;
       languageSelect.append(option);
     }
-    languageSelect.value = selectedLanguage;
+
+    const selected = getSelectedLanguage(engineId);
+    selectedLanguages[engineId] = selected;
+    languageSelect.value = selected;
   };
 
   const populateEngines = (): void => {
@@ -309,24 +372,31 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     if (selectedEngineId) {
       engineSelect.value = selectedEngineId;
       updateEngineDetails(selectedEngineId);
-      languageSelectContainer.classList.toggle('hidden', selectedEngineId !== 'esearch');
+      updateLanguageSelection(selectedEngineId);
     }
   };
 
   const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
     const engineName = ENGINE_CONFIGS[engineId]?.name ?? engineId;
-    const langSuffix = engineId === 'esearch' ? ` (${SUPPORTED_LANGUAGES[selectedLanguage]})` : '';
+    const language = getSelectedLanguage(engineId);
+    const langSuffix = supportsLanguageSelection(engineId)
+      ? ` (${getLanguageLabel(engineId, language)})`
+      : '';
     setStage('loading', `Switching to ${engineName}${langSuffix}...`, 0);
     if (manageBusy) {
       setBusy(true);
     }
     try {
       const loadStart = performance.now();
-      await ocrManager.setEngine(engineId, { language: selectedLanguage });
+      if (supportsLanguageSelection(engineId)) {
+        await ocrManager.setEngine(engineId, { language });
+      } else {
+        await ocrManager.setEngine(engineId);
+      }
       setLoadMetric(performance.now() - loadStart);
       engineReady = true;
       activeEngineId = engineId;
-      activeLanguage = selectedLanguage;
+      activeLanguage = supportsLanguageSelection(engineId) ? language : null;
       setStage('idle', `${engineName} ready`, 0);
     } catch (error) {
       logError(error);
@@ -348,7 +418,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     } else {
       registerDefaultEngines();
     }
-    populateLanguages();
     populateEngines();
     setStage('idle', 'Ready for upload', 0);
   }
@@ -387,17 +456,19 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     activeEngineId = null;
     setStoredEngine(selectedEngineId);
     updateEngineDetails(selectedEngineId);
-    languageSelectContainer.classList.toggle('hidden', selectedEngineId !== 'esearch');
+    updateLanguageSelection(selectedEngineId);
     void switchEngine(selectedEngineId);
   });
 
   languageSelect.addEventListener('change', (): void => {
-    selectedLanguage = languageSelect.value;
+    if (!selectedEngineId || !supportsLanguageSelection(selectedEngineId)) {
+      return;
+    }
+
+    selectedLanguages[selectedEngineId] = languageSelect.value;
     engineReady = false;
     activeLanguage = null;
-    if (selectedEngineId === 'esearch') {
-      void switchEngine(selectedEngineId);
-    }
+    void switchEngine(selectedEngineId);
   });
 
   const runOcr = async (): Promise<void> => {
@@ -414,7 +485,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         return;
       }
 
-      const languageMismatch = selectedEngineId === 'esearch' && activeLanguage !== selectedLanguage;
+      const languageMismatch =
+        supportsLanguageSelection(selectedEngineId) &&
+        activeLanguage !== getSelectedLanguage(selectedEngineId);
       if (!engineReady || activeEngineId !== selectedEngineId || languageMismatch) {
         await switchEngine(selectedEngineId, false);
         if (!engineReady || activeEngineId !== selectedEngineId) {

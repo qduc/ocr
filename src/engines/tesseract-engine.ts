@@ -3,14 +3,26 @@ import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
 
 export type TesseractProgressCallback = (status: string, progress: number) => void;
 
+export interface TesseractEngineOptions {
+  language?: string;
+  onProgress?: TesseractProgressCallback;
+}
+
 export class TesseractEngine implements IOCREngine {
   public readonly id = 'tesseract';
   public isLoading = false;
   private worker: Worker | null = null;
   private readonly onProgress?: TesseractProgressCallback;
+  private readonly language: string;
 
-  constructor(onProgress?: TesseractProgressCallback) {
-    this.onProgress = onProgress;
+  constructor(options?: TesseractEngineOptions | TesseractProgressCallback) {
+    if (typeof options === 'function') {
+      this.onProgress = options;
+      this.language = 'eng';
+    } else {
+      this.onProgress = options?.onProgress;
+      this.language = options?.language ?? 'eng';
+    }
   }
 
   async load(): Promise<void> {
@@ -20,7 +32,7 @@ export class TesseractEngine implements IOCREngine {
 
     this.isLoading = true;
     try {
-      this.worker = await createWorker('eng', 1, {
+      this.worker = await createWorker(this.language, 1, {
         cacheMethod: 'refresh',
         cachePath: '.',
         logger: (message) => {

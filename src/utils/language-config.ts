@@ -16,6 +16,25 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
   'hindi': 'Hindi',
 };
 
+/**
+ * Common Tesseract language packs to expose in the UI.
+ * Keys align to Tesseract traineddata identifiers.
+ */
+export const TESSERACT_LANGUAGES: Record<string, string> = {
+  'eng': 'English',
+  'spa': 'Spanish',
+  'fra': 'French',
+  'deu': 'German',
+  'ita': 'Italian',
+  'por': 'Portuguese',
+  'nld': 'Dutch',
+  'pol': 'Polish',
+  'rus': 'Russian',
+  'jpn': 'Japanese',
+  'kor': 'Korean',
+  'chi_sim': 'Chinese (Simplified)',
+};
+
 const HF_BASE_URL = 'https://huggingface.co/monkt/paddleocr-onnx/resolve/main';
 
 export interface ModelUrls {

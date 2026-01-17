@@ -22,14 +22,14 @@ const registerEngines = (factory: { register: (id: string, creator: () => unknow
     id: 'tesseract',
     isLoading: false,
     load: (): Promise<void> => Promise.resolve(),
-    process: (): Promise<string> => Promise.resolve(''),
+    process: (): Promise<{ text: string }> => Promise.resolve({ text: '' }),
     destroy: (): Promise<void> => Promise.resolve(),
   }));
   factory.register('transformers', () => ({
     id: 'transformers',
     isLoading: false,
     load: (): Promise<void> => Promise.resolve(),
-    process: (): Promise<string> => Promise.resolve(''),
+    process: (): Promise<{ text: string }> => Promise.resolve({ text: '' }),
     destroy: (): Promise<void> => Promise.resolve(),
   }));
 };
@@ -120,6 +120,6 @@ describe('Engine selection unit tests', () => {
     select.dispatchEvent(new Event('change'));
 
     await Promise.resolve();
-    expect(setEngine).toHaveBeenCalledWith('transformers', { language: 'english' });
+    expect(setEngine).toHaveBeenCalledWith('transformers');
   });
 });

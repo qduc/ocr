@@ -14,7 +14,7 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
     description: 'Traditional OCR engine with broad language support',
     requiresWebGPU: false,
     estimatedModelSize: 4.5,
-    supportedLanguages: ['eng'],
+    supportedLanguages: ['eng', 'spa', 'fra', 'deu', 'ita', 'por', 'nld', 'pol', 'rus', 'jpn', 'kor', 'chi_sim'],
   },
   transformers: {
     id: 'transformers',
@@ -30,7 +30,7 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
     description: 'High-accuracy OCR for multiple languages via PaddleOCR',
     requiresWebGPU: false,
     estimatedModelSize: 12,
-    supportedLanguages: ['chi_sim', 'eng', 'ara', 'kor', 'tel', 'tam', 'tha', 'hin'],
+    supportedLanguages: ['english', 'chinese', 'arabic', 'korean', 'latin', 'tamil', 'telugu', 'thai', 'eslav', 'greek', 'hindi'],
   },
 };
 

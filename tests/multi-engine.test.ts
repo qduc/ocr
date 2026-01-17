@@ -29,6 +29,13 @@ if (typeof ImageData === 'undefined') {
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
+if (typeof URL.createObjectURL === 'undefined') {
+  URL.createObjectURL = vi.fn(() => 'mock-url');
+}
+if (typeof URL.revokeObjectURL === 'undefined') {
+  URL.revokeObjectURL = vi.fn();
+}
+
 const createSupportedDetector = (): FeatureDetector =>
   ({
     detect: () => ({
@@ -81,7 +88,7 @@ describe('Multi-engine integration', () => {
         id: 'tesseract',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('Tesseract output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Tesseract output' }),
         destroy: (): Promise<void> => Promise.resolve(void tesseractInstance?.destroy()),
       };
     });
@@ -94,7 +101,7 @@ describe('Multi-engine integration', () => {
         id: 'transformers',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('Transformers output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Transformers output' }),
         destroy: (): Promise<void> => Promise.resolve(void transformersInstance?.destroy()),
       };
     });
@@ -152,7 +159,7 @@ describe('Multi-engine eSearch integration', () => {
         id: 'tesseract',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('Tesseract output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Tesseract output' }),
         destroy: (): Promise<void> => Promise.resolve(void tesseractInstance?.destroy()),
       };
     });
@@ -165,7 +172,7 @@ describe('Multi-engine eSearch integration', () => {
         id: 'esearch',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('eSearch output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'eSearch output' }),
         destroy: (): Promise<void> => Promise.resolve(void esearchInstance?.destroy()),
       };
     });
@@ -217,7 +224,7 @@ describe('Multi-engine eSearch integration', () => {
         id: 'esearch',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('eSearch output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'eSearch output' }),
         destroy: (): Promise<void> => Promise.resolve(void esearchInstance?.destroy()),
       };
     });
@@ -230,7 +237,7 @@ describe('Multi-engine eSearch integration', () => {
         id: 'transformers',
         isLoading: false,
         load: (): Promise<void> => Promise.resolve(),
-        process: (): Promise<string> => Promise.resolve('Transformers output'),
+        process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Transformers output' }),
         destroy: (): Promise<void> => Promise.resolve(void transformersInstance?.destroy()),
       };
     });
@@ -282,7 +289,7 @@ describe('Multi-engine eSearch integration', () => {
       id: 'tesseract',
       isLoading: false,
       load: (): Promise<void> => Promise.resolve(),
-      process: (): Promise<string> => Promise.resolve('Tesseract output'),
+      process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Tesseract output' }),
       destroy: (): Promise<void> => Promise.resolve(void tesseractDestroyed()),
     }));
 
@@ -290,7 +297,7 @@ describe('Multi-engine eSearch integration', () => {
       id: 'transformers',
       isLoading: false,
       load: (): Promise<void> => Promise.resolve(),
-      process: (): Promise<string> => Promise.resolve('Transformers output'),
+      process: (): Promise<{ text: string }> => Promise.resolve({ text: 'Transformers output' }),
       destroy: (): Promise<void> => Promise.resolve(void transformersDestroyed()),
     }));
 
@@ -298,7 +305,7 @@ describe('Multi-engine eSearch integration', () => {
       id: 'esearch',
       isLoading: false,
       load: (): Promise<void> => Promise.resolve(),
-      process: (): Promise<string> => Promise.resolve('eSearch output'),
+      process: (): Promise<{ text: string }> => Promise.resolve({ text: 'eSearch output' }),
       destroy: (): Promise<void> => Promise.resolve(void esearchDestroyed()),
     }));
 

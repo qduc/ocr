@@ -43,7 +43,7 @@ describe('ESearchEngine Caching', () => {
 
   it('uses ModelCache to load models and dictionary', async () => {
     // Setup mock to execute the fetcher so load() completes successfully
-    mockLoadOrFetch.mockImplementation(async (_key, fetcher) => {
+    mockLoadOrFetch.mockImplementation((_key: string, fetcher: () => Promise<ArrayBuffer>) => {
       return fetcher();
     });
 
@@ -62,16 +62,16 @@ describe('ESearchEngine Caching', () => {
 
   it('avoids fetch when ModelCache returns cached data', async () => {
     // Setup mock to return cached data WITHOUT calling fetcher
-    mockLoadOrFetch.mockImplementation(async (key, _fetcher) => {
+    mockLoadOrFetch.mockImplementation((key: string, _fetcher: () => Promise<ArrayBuffer>) => {
       if (key.endsWith('.txt')) {
         // For dictionary, we need to emulate how fetchTextFile handles it
         // The real implementation expects generic buffer from cache for text too,
         // but let's see. fetchTextFile calls loadOrFetch, which returns buffer.
         // It then decodes it.
         // So we should return an ArrayBuffer here.
-        return new TextEncoder().encode('cached_dict').buffer;
+        return Promise.resolve(new TextEncoder().encode('cached_dict').buffer);
       }
-      return new ArrayBuffer(20); // Cached model
+      return Promise.resolve(new ArrayBuffer(20)); // Cached model
     });
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');

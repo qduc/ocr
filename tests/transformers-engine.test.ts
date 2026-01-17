@@ -8,7 +8,7 @@ vi.mock('@xenova/transformers', () => ({
   env: { useBrowserCache: false },
   RawImage: class {
     constructor(public data: unknown, public width: number, public height: number, public channels: number) {}
-    rgb() {
+    rgb(): this {
       return this;
     }
   },
@@ -87,7 +87,7 @@ describe('TransformersEngine unit tests', () => {
     await engine.load();
 
     const result = await engine.process(createTestImageData());
-    expect(result).toBe('OCR');
+    expect(result).toEqual({ text: 'OCR' });
   });
 
   it('destroys pipeline resources when available', async () => {

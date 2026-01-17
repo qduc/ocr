@@ -101,6 +101,23 @@ describe('TesseractEngine unit tests', () => {
     );
   });
 
+  it('loads the worker with the requested language', async () => {
+    const worker = makeWorker();
+    createWorkerMock.mockResolvedValueOnce(worker as unknown as ReturnType<typeof makeWorker>);
+
+    const engine = new TesseractEngine({ language: 'spa' });
+    await engine.load();
+
+    expect(createWorkerMock).toHaveBeenCalledWith(
+      'spa',
+      1,
+      expect.objectContaining({
+        cacheMethod: 'refresh',
+        logger: expect.any(Function) as unknown,
+      }) as unknown
+    );
+  });
+
   it('invokes progress callback during load', async () => {
     const worker = makeWorker();
     const progressSpy = vi.fn();
@@ -126,7 +143,7 @@ describe('TesseractEngine unit tests', () => {
     await engine.load();
 
     const result = await engine.process(new ImageData(1, 1));
-    expect(result).toBe('OCR text');
+    expect(result).toEqual({ text: 'OCR text', items: undefined });
     expect(worker.recognize).toHaveBeenCalled();
   });
 

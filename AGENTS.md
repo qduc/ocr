@@ -30,10 +30,7 @@
 - Test files follow `*.test.ts` under `tests/`.
 - Keep tests focused on engine selection, OCR result accuracy (including bounding boxes), and UI behavior.
 - Run locally with `npm test` or watch mode via `npm run test:watch`.
-
-## Commit & Pull Request Guidelines
-- Recent commits use short, imperative, sentence-case messages (e.g., “Add …”, “Mark …”).
-- No PR template found; include a brief summary, tests run, and screenshots for UI changes.
+- IMPORTANT: Always run test and lint after finishing a task.
 
 ## Decision Log & Specs
 - Track rationale in `docs/DECISION_LOG.md`.
