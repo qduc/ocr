@@ -135,11 +135,8 @@ export class ESearchEngine implements IOCREngine {
 
       this.configureOnnxRuntime();
       this.reportProgress('Initializing OCR engine', 0.8);
-      this.ocrInstance = await initOCR({
+      const initOptions: ESearchInitOptions = {
         ort,
-        ortOption: {
-          executionProviders: this.webgpu ? ['webgpu', 'wasm'] : ['wasm'],
-        },
         det: {
           input: detBuffer,
         },
@@ -154,7 +151,27 @@ export class ESearchEngine implements IOCREngine {
             this.reportProgress(`Recognizing text ${index + 1}/${total}`, progress);
           },
         },
-      });
+      };
+
+      const initWithProviders = async (providers: string[]): Promise<ESearchOCRInstance> =>
+        initOCR({
+          ...initOptions,
+          ortOption: {
+            executionProviders: providers,
+          },
+        });
+
+      try {
+        const providers = this.webgpu ? ['webgpu', 'wasm'] : ['wasm'];
+        this.ocrInstance = await initWithProviders(providers);
+      } catch (error) {
+        if (!this.webgpu) {
+          throw error;
+        }
+
+        this.reportProgress('WebGPU unavailable, falling back to WASM', 0.85);
+        this.ocrInstance = await initWithProviders(['wasm']);
+      }
 
       this.reportProgress('Ready', 1);
     } catch (error) {

@@ -197,6 +197,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   const detector = options.featureDetector ?? new FeatureDetector();
   const capabilities = detector.detect();
+  const webgpuAvailable = capabilities.webgpu && globalThis.crossOriginIsolated === true;
 
   const imageProcessor = options.imageProcessor ?? new ImageProcessor();
   const engineFactory = options.engineFactory ?? new EngineFactory();
@@ -219,6 +220,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     tesseract: TESSERACT_LANGUAGES,
     esearch: SUPPORTED_LANGUAGES,
   };
+  const webgpuEngines = new Set(['transformers', 'esearch']);
 
   const supportsLanguageSelection = (engineId: string): boolean =>
     Boolean(languageOptionsByEngine[engineId]);
@@ -300,7 +302,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     engineFactory.register('transformers', async () => {
       const { TransformersEngine } = await import('@/engines/transformers-engine');
       return new TransformersEngine({
-        webgpu: capabilities.webgpu,
+        webgpu: webgpuAvailable,
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading Transformers: ${status}`, percent);
@@ -311,7 +313,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const { ESearchEngine } = await import('@/engines/esearch-engine');
       return new ESearchEngine({
         language: options?.language,
-        webgpu: capabilities.webgpu,
+        webgpu: webgpuAvailable,
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading eSearch-OCR: ${status}`, percent);
@@ -341,7 +343,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       return;
     }
 
-    const gpuNote = config.requiresWebGPU && !capabilities.webgpu ? 'WebGPU not detected, CPU fallback in use.' : '';
+    const gpuNote = webgpuEngines.has(engineId)
+      ? webgpuAvailable
+        ? 'WebGPU enabled'
+        : 'CPU mode (WebGPU unavailable)'
+      : '';
     const languages = formatSupportedLanguages(engineId);
     engineDetails.textContent = `${config.description} • ${languages}${gpuNote ? ` • ${gpuNote}` : ''}`;
   };
