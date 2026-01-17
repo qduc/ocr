@@ -93,6 +93,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           <div class="file-input">
             <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
             <div id="file-meta" class="file-meta">No file selected.</div>
+            <div id="image-preview-container" class="image-preview-container hidden">
+              <img id="image-preview" class="image-preview" src="" alt="Preview" />
+            </div>
           </div>
           <button id="run-button" class="primary-button" type="button">Extract text</button>
         </section>
@@ -132,6 +135,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const errorMessage = root.querySelector<HTMLParagraphElement>('#error-message');
   const errorSuggestion = root.querySelector<HTMLParagraphElement>('#error-suggestion');
   const retryButton = root.querySelector<HTMLButtonElement>('#retry-button');
+  const imagePreviewContainer = root.querySelector<HTMLDivElement>('#image-preview-container');
+  const imagePreview = root.querySelector<HTMLImageElement>('#image-preview');
 
   if (
     !statusCard ||
@@ -151,7 +156,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !errorPanel ||
     !errorMessage ||
     !errorSuggestion ||
-    !retryButton
+    !retryButton ||
+    !imagePreviewContainer ||
+    !imagePreview
   ) {
     throw new Error('UI elements missing.');
   }
@@ -168,6 +175,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let selectedLanguage: string = 'english';
   let activeEngineId: string | null = null;
   let activeLanguage: string | null = null;
+  let currentPreviewUrl: string | null = null;
 
   const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
@@ -336,11 +344,27 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   }
 
   fileInput.addEventListener('change', (): void => {
+    if (currentPreviewUrl) {
+      URL.revokeObjectURL(currentPreviewUrl);
+      currentPreviewUrl = null;
+    }
+
     selectedFile = fileInput.files?.[0] ?? null;
     fileMeta.textContent = selectedFile
       ? `${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB)`
       : 'No file selected.';
-    output.textContent = selectedFile ? 'Image loaded. Click extract to run OCR.' : 'Upload an image to begin.';
+    output.textContent = selectedFile
+      ? 'Image loaded. Click extract to run OCR.'
+      : 'Upload an image to begin.';
+
+    if (selectedFile) {
+      currentPreviewUrl = URL.createObjectURL(selectedFile);
+      imagePreview.src = currentPreviewUrl;
+      imagePreviewContainer.classList.remove('hidden');
+    } else {
+      imagePreview.src = '';
+      imagePreviewContainer.classList.add('hidden');
+    }
   });
 
   engineSelect.addEventListener('change', (): void => {

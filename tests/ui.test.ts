@@ -30,6 +30,14 @@ if (typeof ImageData === 'undefined') {
   globalThis.ImageData = ImageDataPolyfill as unknown as typeof ImageData;
 }
 
+if (typeof URL.createObjectURL === 'undefined') {
+  URL.createObjectURL = vi.fn(() => 'blob:test');
+}
+
+if (typeof URL.revokeObjectURL === 'undefined') {
+  URL.revokeObjectURL = vi.fn();
+}
+
 const createSupportedDetector = (): FeatureDetector =>
   ({
     detect: () => ({
