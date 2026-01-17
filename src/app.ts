@@ -48,7 +48,6 @@ export interface AppInstance {
     imagePreviewContainer: HTMLDivElement;
     urlInput: HTMLInputElement;
     loadUrlButton: HTMLButtonElement;
-    pasteArea: HTMLDivElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -92,9 +91,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
               <button class="method-tab" type="button" data-method="url" role="tab" aria-selected="false">
                 URL
               </button>
-              <button class="method-tab" type="button" data-method="paste" role="tab" aria-selected="false">
-                Paste/Drop
-              </button>
             </div>
             <div class="method-panels">
               <div class="method-panel is-active" data-method="file" role="tabpanel">
@@ -117,11 +113,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
                 </div>
               </div>
 
-              <div class="method-panel" data-method="paste" role="tabpanel">
-                <div id="paste-area" class="paste-area" tabindex="0">
-                  <span>Paste image from clipboard (Ctrl+V)</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -181,6 +172,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         </div>
       </div>
     </div>
+    <div id="drop-overlay" class="drop-overlay hidden">
+      <div class="drop-content">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <span>Drop image to process</span>
+      </div>
+    </div>
   `;
 
   const statusCard = root.querySelector<HTMLDivElement>('.status-card');
@@ -210,7 +211,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const ocrOverlayModal = root.querySelector<HTMLDivElement>('#ocr-overlay-modal');
   const urlInput = root.querySelector<HTMLInputElement>('#url-input');
   const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
-  const pasteArea = root.querySelector<HTMLDivElement>('#paste-area');
+  const dropOverlay = root.querySelector<HTMLDivElement>('#drop-overlay');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
   const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
@@ -244,7 +245,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !copyOutputButton ||
     !urlInput ||
     !loadUrlButton ||
-    !pasteArea ||
+    !dropOverlay ||
     methodTabs.length === 0 ||
     methodPanels.length === 0
   ) {
@@ -285,8 +286,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       fileInput.focus();
     } else if (method === 'url') {
       urlInput.focus();
-    } else if (method === 'paste') {
-      pasteArea.focus();
     }
   };
 
@@ -622,7 +621,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       if (item.type.startsWith('image/')) {
         const blob = item.getAsFile();
         if (blob) {
-          setActiveMethod('paste');
+          setActiveMethod('file');
           loadImage(blob);
           break;
         }
@@ -632,21 +631,32 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   document.addEventListener('paste', handlePaste);
 
-  pasteArea.addEventListener('dragover', (e): void => {
+  let dragCounter = 0;
+
+  document.addEventListener('dragenter', (e): void => {
     e.preventDefault();
-    pasteArea.classList.add('drag-over');
+    dragCounter++;
+    dropOverlay.classList.remove('hidden');
   });
 
-  pasteArea.addEventListener('dragleave', (): void => {
-    pasteArea.classList.remove('drag-over');
+  document.addEventListener('dragover', (e): void => {
+    e.preventDefault();
   });
 
-  pasteArea.addEventListener('drop', (e): void => {
+  document.addEventListener('dragleave', (): void => {
+    dragCounter--;
+    if (dragCounter === 0) {
+      dropOverlay.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('drop', (e): void => {
     e.preventDefault();
-    pasteArea.classList.remove('drag-over');
+    dragCounter = 0;
+    dropOverlay.classList.add('hidden');
     const file = e.dataTransfer?.files[0];
     if (file && file.type.startsWith('image/')) {
-      setActiveMethod('paste');
+      setActiveMethod('file'); // Reuse the 'file' UI for dropped files, or stick with current
       loadImage(file);
     }
   });
@@ -899,7 +909,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer,
       urlInput,
       loadUrlButton,
-      pasteArea,
     },
     setStage,
   };
