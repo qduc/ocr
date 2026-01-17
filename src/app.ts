@@ -10,6 +10,7 @@ import {
   logError,
 } from '@/utils/error-handling';
 import { OCRError } from '@/types/ocr-errors';
+import type { OCRResult } from '@/types/ocr-engine';
 import { ENGINE_CONFIGS } from '@/types/ocr-models';
 import { SUPPORTED_LANGUAGES } from '@/utils/language-config';
 
@@ -94,7 +95,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
             <div id="file-meta" class="file-meta">No file selected.</div>
             <div id="image-preview-container" class="image-preview-container hidden">
-              <img id="image-preview" class="image-preview" src="" alt="Preview" />
+              <div id="preview-wrapper" class="preview-wrapper">
+                <img id="image-preview" class="image-preview" src="" alt="Preview" />
+                <div id="ocr-overlay" class="ocr-overlay"></div>
+              </div>
             </div>
           </div>
           <button id="run-button" class="primary-button" type="button">Extract text</button>
@@ -137,6 +141,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const retryButton = root.querySelector<HTMLButtonElement>('#retry-button');
   const imagePreviewContainer = root.querySelector<HTMLDivElement>('#image-preview-container');
   const imagePreview = root.querySelector<HTMLImageElement>('#image-preview');
+  const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay');
 
   if (
     !statusCard ||
@@ -158,7 +163,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !errorSuggestion ||
     !retryButton ||
     !imagePreviewContainer ||
-    !imagePreview
+    !imagePreview ||
+    !ocrOverlay
   ) {
     throw new Error('UI elements missing.');
   }
@@ -176,6 +182,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let activeEngineId: string | null = null;
   let activeLanguage: string | null = null;
   let currentPreviewUrl: string | null = null;
+  let lastResult: OCRResult | null = null;
 
   const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
@@ -361,9 +368,13 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       currentPreviewUrl = URL.createObjectURL(selectedFile);
       imagePreview.src = currentPreviewUrl;
       imagePreviewContainer.classList.remove('hidden');
+      ocrOverlay.innerHTML = '';
+      lastResult = null;
     } else {
       imagePreview.src = '';
       imagePreviewContainer.classList.add('hidden');
+      ocrOverlay.innerHTML = '';
+      lastResult = null;
     }
   });
 
@@ -414,10 +425,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const processed =
         selectedEngineId === 'transformers' ? resized : imageProcessor.preprocess(resized);
       const processStart = performance.now();
-      const text = await ocrManager.run(processed);
+      const result = await ocrManager.run(processed);
       setProcessMetric(performance.now() - processStart);
+      lastResult = result;
 
-      output.textContent = text.trim().length > 0 ? text : 'No text detected in this image.';
+      output.textContent = result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
+      if (result.items && result.items.length > 0) {
+        drawBoxes(result.items, processed.width, processed.height);
+      } else {
+        ocrOverlay.innerHTML = '';
+      }
       setStage('complete', 'OCR complete', 100);
     } catch (error) {
       logError(error);
@@ -441,6 +458,47 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   retryButton.addEventListener('click', (): void => {
     void runOcr();
+  });
+
+  const drawBoxes = (items: OCRResult['items'], originalWidth: number, originalHeight: number): void => {
+    if (!items) return;
+    ocrOverlay.innerHTML = '';
+
+    // Wait for image to load to get its displayed dimensions
+    const updateOverlay = (): void => {
+      const displayWidth = imagePreview.clientWidth;
+      const displayHeight = imagePreview.clientHeight;
+
+      const scaleX = displayWidth / originalWidth;
+      const scaleY = displayHeight / originalHeight;
+
+      items.forEach((item) => {
+        const box = document.createElement('div');
+        box.className = 'ocr-box';
+        box.style.left = `${item.boundingBox.x * scaleX}px`;
+        box.style.top = `${item.boundingBox.y * scaleY}px`;
+        box.style.width = `${item.boundingBox.width * scaleX}px`;
+        box.style.height = `${item.boundingBox.height * scaleY}px`;
+        box.title = `${item.text} (${Math.round(item.confidence * 100)}%)`;
+        box.setAttribute('data-text', item.text);
+        ocrOverlay.appendChild(box);
+      });
+    };
+
+    if (imagePreview.complete) {
+      updateOverlay();
+    } else {
+      imagePreview.onload = updateOverlay;
+    }
+  };
+
+  window.addEventListener('resize', (): void => {
+    if (lastResult?.items) {
+      // Re-draw boxes on resize to match new image dimensions
+      // We need to know which image data was used.
+      // This is a bit tricky if we don't store the processed dimensions.
+      // For now, let's just clear or try to update if we have the info.
+    }
   });
 
   return {

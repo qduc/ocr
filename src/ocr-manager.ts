@@ -1,4 +1,4 @@
-import type { IOCREngine } from '@/types/ocr-engine';
+import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
 import { EngineFactory } from '@/engines/engine-factory';
 
 export class OCRManager {
@@ -20,7 +20,7 @@ export class OCRManager {
     await engine.load();
   }
 
-  async run(image: ImageData): Promise<string> {
+  async run(image: ImageData): Promise<OCRResult> {
     if (!this.activeEngine) {
       throw new Error('Engine not initialized.');
     }

@@ -1,14 +1,14 @@
 import * as ort from 'onnxruntime-web';
 // @ts-expect-error esearch-ocr lacks proper TypeScript exports in package.json
 import * as ocrImport from 'esearch-ocr';
-import type { IOCREngine } from '@/types/ocr-engine';
+import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
 import type {
   ESearchOCRInstance,
   ESearchModelPaths,
   ESearchOCROutput,
   ESearchInitOptions,
 } from '@/types/esearch-types';
-import { extractTextFromESearchOutput } from '@/types/esearch-types';
+import { extractTextFromESearchOutput, mapESearchResultToStandard } from '@/types/esearch-types';
 import { getHuggingFaceModelUrls } from '@/utils/language-config';
 
 /**
@@ -177,7 +177,7 @@ export class ESearchEngine implements IOCREngine {
    * @returns Extracted text as a plain string
    * @throws Error if the engine is not loaded or processing fails
    */
-  async process(data: ImageData): Promise<string> {
+  async process(data: ImageData): Promise<OCRResult> {
     if (!this.ocrInstance) {
       throw new Error('eSearch-OCR engine not loaded.');
     }
@@ -188,7 +188,10 @@ export class ESearchEngine implements IOCREngine {
 
     try {
       const result: ESearchOCROutput = await this.ocrInstance.ocr(data);
-      return extractTextFromESearchOutput(result);
+      return {
+        text: extractTextFromESearchOutput(result),
+        items: mapESearchResultToStandard(result.parragraphs),
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`eSearch-OCR processing failed: ${message}`);

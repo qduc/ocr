@@ -1,5 +1,5 @@
 import { pipeline, env, RawImage } from '@xenova/transformers';
-import type { IOCREngine } from '@/types/ocr-engine';
+import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
 
 export type TransformersProgressCallback = (status: string, progress: number) => void;
 
@@ -9,7 +9,8 @@ type ImageInput =
   | OffscreenCanvas
   | ImageBitmap
   | Blob
-  | string;
+  | string
+  | RawImage;
 type ImageToTextPipeline = (image: ImageInput) => Promise<Array<{ generated_text?: string; text?: string }>>;
 
 export interface TransformersEngineOptions {
@@ -74,7 +75,7 @@ export class TransformersEngine implements IOCREngine {
     }
   }
 
-  async process(data: ImageData): Promise<string> {
+  async process(data: ImageData): Promise<OCRResult> {
     if (!this.pipelineInstance) {
       throw new Error('Transformers engine not loaded.');
     }
@@ -86,7 +87,9 @@ export class TransformersEngine implements IOCREngine {
     const rawImage = new RawImage(data.data, data.width, data.height, 4).rgb();
     const results = await this.pipelineInstance(rawImage);
     const first = results[0];
-    return first?.generated_text ?? first?.text ?? '';
+    return {
+      text: first?.generated_text ?? first?.text ?? '',
+    };
   }
 
   async destroy(): Promise<void> {

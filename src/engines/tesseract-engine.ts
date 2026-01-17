@@ -1,5 +1,5 @@
 import { createWorker, type Worker } from 'tesseract.js';
-import type { IOCREngine } from '@/types/ocr-engine';
+import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
 
 export type TesseractProgressCallback = (status: string, progress: number) => void;
 
@@ -34,14 +34,26 @@ export class TesseractEngine implements IOCREngine {
     }
   }
 
-  async process(data: ImageData): Promise<string> {
+  async process(data: ImageData): Promise<OCRResult> {
     if (!this.worker) {
       throw new Error('Tesseract engine not loaded.');
     }
 
     const blob = await this.imageDataToBlob(data);
     const result = await this.worker.recognize(blob);
-    return result.data.text ?? '';
+    return {
+      text: result.data.text ?? '',
+      items: result.data.words?.map(word => ({
+        text: word.text,
+        confidence: word.confidence / 100,
+        boundingBox: {
+          x: word.bbox.x0,
+          y: word.bbox.y0,
+          width: word.bbox.x1 - word.bbox.x0,
+          height: word.bbox.y1 - word.bbox.y0,
+        },
+      })),
+    };
   }
 
   async destroy(): Promise<void> {

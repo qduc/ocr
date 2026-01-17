@@ -152,7 +152,7 @@ describe('ESearchEngine property tests', () => {
           await engine.load();
           const result = await engine.process(createTestImageData());
 
-          expect(result).toBe(texts.join('\n'));
+          expect(result.text).toBe(texts.join('\n'));
         }
       ),
       { numRuns: 20 }
@@ -176,8 +176,8 @@ describe('ESearchEngine property tests', () => {
           const imageData = createTestImageData(width, height);
           const result = await engine.process(imageData);
 
-          expect(typeof result).toBe('string');
-          expect(result.length).toBeGreaterThan(0);
+          expect(typeof result.text).toBe('string');
+          expect(result.text.length).toBeGreaterThan(0);
         }
       ),
       { numRuns: 15 }
@@ -452,7 +452,8 @@ describe('ESearchEngine unit tests', () => {
       await engine.load();
 
       const result = await engine.process(createTestImageData());
-      expect(result).toBe('Recognized text');
+      expect(result.text).toBe('Recognized text');
+      expect(result.items).toHaveLength(1);
     });
 
     it('throws error if engine not loaded', async () => {
@@ -514,7 +515,7 @@ describe('ESearchEngine unit tests', () => {
       await engine.load();
 
       const result = await engine.process(createTestImageData());
-      expect(result).toBe('');
+      expect(result.text).toBe('');
     });
 
     it('joins multiple paragraphs with newlines', async () => {
@@ -534,7 +535,7 @@ describe('ESearchEngine unit tests', () => {
       await engine.load();
 
       const result = await engine.process(createTestImageData());
-      expect(result).toBe('Line 1\nLine 2\nLine 3');
+      expect(result.text).toBe('Line 1\nLine 2\nLine 3');
     });
   });
 
@@ -584,12 +585,12 @@ describe('ESearchEngine unit tests', () => {
       const engine = new ESearchEngine({ modelPaths: createMockModelPaths() });
       await engine.load();
       const result1 = await engine.process(createTestImageData());
-      expect(result1).toBe('First load');
+      expect(result1.text).toBe('First load');
 
       await engine.destroy();
       await engine.load();
       const result2 = await engine.process(createTestImageData());
-      expect(result2).toBe('Second load');
+      expect(result2.text).toBe('Second load');
     });
   });
 
@@ -704,8 +705,8 @@ describe('mapESearchResultToStandard utility', () => {
     const result = mapESearchResultToStandard(items);
 
     expect(result).toHaveLength(2);
-    expect(result[0].text).toBe('First');
-    expect(result[1].text).toBe('Second');
+    expect(result[0]!.text).toBe('First');
+    expect(result[1]!.text).toBe('Second');
   });
 
   it('returns empty array for empty input', () => {
