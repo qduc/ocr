@@ -106,7 +106,12 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         </section>
 
         <section class="panel result-panel">
-          <h2>2. OCR output</h2>
+          <div class="result-header">
+            <h2>2. OCR output</h2>
+            <button id="copy-output-button" class="icon-button hidden" title="Copy all text">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
           <div id="output" class="output">Upload an image to begin.</div>
         </section>
       </main>
@@ -119,6 +124,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         <p id="error-message" class="error-message"></p>
         <p id="error-suggestion" class="error-suggestion"></p>
       </section>
+    </div>
+
+    <div id="image-modal" class="image-modal hidden">
+      <div id="modal-content" class="modal-content">
+        <span id="close-modal" class="close-modal">&times;</span>
+        <div id="modal-preview-wrapper" class="preview-wrapper">
+          <img id="modal-image" class="modal-image" src="" alt="Enlarged Preview" />
+          <div id="ocr-overlay-modal" class="ocr-overlay"></div>
+        </div>
+      </div>
     </div>
   `;
 
@@ -143,6 +158,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const imagePreviewContainer = root.querySelector<HTMLDivElement>('#image-preview-container');
   const imagePreview = root.querySelector<HTMLImageElement>('#image-preview');
   const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay');
+  const imageModal = root.querySelector<HTMLDivElement>('#image-modal');
+  const modalImage = root.querySelector<HTMLImageElement>('#modal-image');
+  const closeModal = root.querySelector<HTMLSpanElement>('#close-modal');
+  const ocrOverlayModal = root.querySelector<HTMLDivElement>('#ocr-overlay-modal');
+  const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
 
   if (
     !statusCard ||
@@ -165,7 +185,12 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !retryButton ||
     !imagePreviewContainer ||
     !imagePreview ||
-    !ocrOverlay
+    !ocrOverlay ||
+    !imageModal ||
+    !modalImage ||
+    !closeModal ||
+    !ocrOverlayModal ||
+    !copyOutputButton
   ) {
     throw new Error('UI elements missing.');
   }
@@ -203,8 +228,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   const getSelectedLanguage = (engineId: string): string => {
     const options = getLanguageOptions(engineId);
-    const fallback = selectedLanguages[engineId] ?? (options ? Object.keys(options)[0] : 'eng');
-    const selected = selectedLanguages[engineId] ?? fallback;
+    const keys = options ? Object.keys(options) : [];
+    const firstOption = keys.length > 0 ? (keys[0] as string) : 'eng';
+    const fallback: string = selectedLanguages[engineId] ?? firstOption;
+    const selected: string = selectedLanguages[engineId] ?? fallback;
 
     if (options && !(selected in options)) {
       selectedLanguages[engineId] = fallback;
@@ -442,11 +469,13 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer.classList.remove('hidden');
       ocrOverlay.innerHTML = '';
       lastResult = null;
+      copyOutputButton.classList.add('hidden');
     } else {
       imagePreview.src = '';
       imagePreviewContainer.classList.add('hidden');
       ocrOverlay.innerHTML = '';
       lastResult = null;
+      copyOutputButton.classList.add('hidden');
     }
   });
 
@@ -508,6 +537,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       lastProcessedHeight = processed.height;
 
       output.textContent = result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
+      copyOutputButton.classList.toggle('hidden', result.text.trim().length === 0);
       if (result.items && result.items.length > 0) {
         drawBoxes(result.items, processed.width, processed.height);
       } else {
@@ -538,39 +568,127 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     void runOcr();
   });
 
-  const drawBoxes = (items: OCRResult['items'], originalWidth: number, originalHeight: number): void => {
-    if (!items) return;
-    ocrOverlay.innerHTML = '';
+  imagePreview.addEventListener('click', (): void => {
+    if (imagePreview.src && !imagePreviewContainer.classList.contains('hidden')) {
+      modalImage.src = imagePreview.src;
+      imageModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden'; // Prevent scrolling
 
-    // Wait for image to load to get its displayed dimensions
-    const updateOverlay = (): void => {
-      const displayWidth = imagePreview.clientWidth;
-      const displayHeight = imagePreview.clientHeight;
+      if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
+        drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+      }
+    }
+  });
 
-      const scaleX = displayWidth / originalWidth;
-      const scaleY = displayHeight / originalHeight;
+  const closeImageModal = (): void => {
+    imageModal.classList.add('hidden');
+    modalImage.src = '';
+    ocrOverlayModal.innerHTML = '';
+    document.body.style.overflow = ''; // Restore scrolling
+  };
 
-      items.forEach((item) => {
-        const box = document.createElement('div');
-        box.className = 'ocr-box';
-        box.style.left = `${item.boundingBox.x * scaleX}px`;
-        box.style.top = `${item.boundingBox.y * scaleY}px`;
-        box.style.width = `${item.boundingBox.width * scaleX}px`;
-        box.style.height = `${item.boundingBox.height * scaleY}px`;
-        box.title = `${item.text} (${Math.round(item.confidence * 100)}%)`;
-        box.setAttribute('data-text', item.text);
-        const topPos = item.boundingBox.y * scaleY;
-        if (topPos < 32) {
-          box.classList.add('at-top');
-        }
-        ocrOverlay.appendChild(box);
+  imageModal.addEventListener('click', (e: MouseEvent): void => {
+    if (e.target === imageModal || e.target === closeModal) {
+      closeImageModal();
+    }
+  });
+
+  document.addEventListener('keydown', (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && !imageModal.classList.contains('hidden')) {
+      closeImageModal();
+    }
+  });
+
+  copyOutputButton.addEventListener('click', () => {
+    const text = output.textContent ?? '';
+    if (text && text !== 'Upload an image to begin.' && text !== 'No text detected in this image.') {
+      void navigator.clipboard.writeText(text).then(() => {
+        const originalHtml = copyOutputButton.innerHTML;
+        copyOutputButton.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-strong)"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        setTimeout(() => {
+          copyOutputButton.innerHTML = originalHtml;
+        }, 2000);
       });
+    }
+  });
+
+  const renderOverlay = (
+    overlay: HTMLDivElement,
+    image: HTMLImageElement,
+    items: OCRResult['items'],
+    originalWidth: number,
+    originalHeight: number
+  ): void => {
+    if (!items) return;
+    overlay.innerHTML = '';
+
+    const displayWidth = image.clientWidth;
+    const displayHeight = image.clientHeight;
+
+    if (displayWidth === 0 || displayHeight === 0) return;
+
+    const scaleX = displayWidth / originalWidth;
+    const scaleY = displayHeight / originalHeight;
+
+    items.forEach((item) => {
+      const box = document.createElement('div');
+      box.className = 'ocr-box';
+      box.style.left = `${item.boundingBox.x * scaleX}px`;
+      box.style.top = `${item.boundingBox.y * scaleY}px`;
+      box.style.width = `${item.boundingBox.width * scaleX}px`;
+      box.style.height = `${item.boundingBox.height * scaleY}px`;
+      box.title = `${item.text} (${Math.round(item.confidence * 100)}%) - Click to copy`;
+      box.setAttribute('data-text', item.text);
+
+      const topPos = item.boundingBox.y * scaleY;
+      if (topPos < 32) {
+        box.classList.add('at-top');
+      }
+
+      box.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent modal from closing if in modal
+        void navigator.clipboard.writeText(item.text).then(() => {
+          box.classList.add('copied');
+          const originalText = box.getAttribute('data-text');
+          box.setAttribute('data-text', 'Copied!');
+          setTimeout(() => {
+            box.classList.remove('copied');
+            box.setAttribute('data-text', originalText || item.text);
+          }, 1500);
+        });
+      });
+
+      overlay.appendChild(box);
+    });
+  };
+
+  const drawBoxes = (
+    items: OCRResult['items'],
+    originalWidth: number,
+    originalHeight: number
+  ): void => {
+    if (!items) return;
+
+    const updateMain = (): void => {
+      renderOverlay(ocrOverlay, imagePreview, items, originalWidth, originalHeight);
+    };
+
+    const updateModal = (): void => {
+      renderOverlay(ocrOverlayModal, modalImage, items, originalWidth, originalHeight);
     };
 
     if (imagePreview.complete) {
-      updateOverlay();
+      updateMain();
     } else {
-      imagePreview.onload = updateOverlay;
+      imagePreview.addEventListener('load', updateMain, { once: true });
+    }
+
+    if (!imageModal.classList.contains('hidden')) {
+      if (modalImage.complete) {
+        updateModal();
+      } else {
+        modalImage.addEventListener('load', updateModal, { once: true });
+      }
     }
   };
 
