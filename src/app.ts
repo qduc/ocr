@@ -311,6 +311,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const { ESearchEngine } = await import('@/engines/esearch-engine');
       return new ESearchEngine({
         language: options?.language,
+        webgpu: capabilities.webgpu,
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading eSearch-OCR: ${status}`, percent);

@@ -53,6 +53,12 @@ export interface ESearchEngineOptions {
    * Overrides modelPaths if provided.
    */
   language?: string;
+
+  /**
+   * Enable WebGPU acceleration if available.
+   * @default false
+   */
+  webgpu?: boolean;
 }
 
 /**
@@ -81,6 +87,7 @@ export class ESearchEngine implements IOCREngine {
   private readonly onProgress?: ESearchProgressCallback;
   private readonly modelPaths: ESearchModelPaths;
   private readonly optimizeSpace: boolean;
+  private readonly webgpu: boolean;
 
   /**
    * Creates a new eSearch-OCR engine instance.
@@ -99,6 +106,7 @@ export class ESearchEngine implements IOCREngine {
     }
 
     this.optimizeSpace = options.optimizeSpace ?? true;
+    this.webgpu = options.webgpu ?? false;
   }
 
   /**
@@ -129,6 +137,9 @@ export class ESearchEngine implements IOCREngine {
       this.reportProgress('Initializing OCR engine', 0.8);
       this.ocrInstance = await initOCR({
         ort,
+        ortOption: {
+          executionProviders: this.webgpu ? ['webgpu', 'wasm'] : ['wasm'],
+        },
         det: {
           input: detBuffer,
         },
