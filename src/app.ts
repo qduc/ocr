@@ -22,7 +22,10 @@ export interface AppOptions {
   imageProcessor?: ImageProcessor;
   engineFactory?: EngineFactory;
   ocrManager?: OCRManager;
-  registerEngines?: (factory: EngineFactory, setStage: (stage: Stage, message: string, progress?: number) => void) => void;
+  registerEngines?: (
+    factory: EngineFactory,
+    setStage: (stage: Stage, message: string, progress?: number) => void
+  ) => void;
 }
 
 export interface AppInstance {
@@ -399,6 +402,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       return '';
     }
 
+    if (engineId === 'tesseract') {
+      return '100+ languages';
+    }
+
     const options = getLanguageOptions(engineId);
     if (!options) {
       return config.supportedLanguages.join(', ');
@@ -450,7 +457,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
 
     languageSelect.innerHTML = '';
-    for (const [key, name] of Object.entries(options)) {
+    // Sort languages alphabetically for better UX
+    const sortedOptions = Object.entries(options).sort((a, b) => a[1].localeCompare(b[1]));
+    for (const [key, name] of sortedOptions) {
       const option = document.createElement('option');
       option.value = key;
       option.textContent = name;
@@ -473,7 +482,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
 
     const preferred = getStoredEngine();
-    selectedEngineId = engines.includes(preferred ?? '') ? preferred : engines[0] ?? null;
+    selectedEngineId = engines.includes(preferred ?? '') ? preferred : (engines[0] ?? null);
     if (selectedEngineId) {
       engineSelect.value = selectedEngineId;
       updateEngineDetails(selectedEngineId);
@@ -666,7 +675,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const runOcr = async (): Promise<void> => {
     clearError();
     if (!selectedSource) {
-      setError(createInvalidImageError('Select an image file, enter a URL, or paste an image before running OCR.'));
+      setError(
+        createInvalidImageError(
+          'Select an image file, enter a URL, or paste an image before running OCR.'
+        )
+      );
       return;
     }
 
@@ -699,7 +712,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       lastProcessedWidth = processed.width;
       lastProcessedHeight = processed.height;
 
-      output.textContent = result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
+      output.textContent =
+        result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
       copyOutputButton.classList.toggle('hidden', result.text.trim().length === 0);
       if (result.items && result.items.length > 0) {
         drawBoxes(result.items, processed.width, processed.height);
@@ -764,7 +778,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   copyOutputButton.addEventListener('click', () => {
     const text = output.textContent ?? '';
-    if (text && text !== 'Upload an image to begin.' && text !== 'No text detected in this image.') {
+    if (
+      text &&
+      text !== 'Upload an image to begin.' &&
+      text !== 'No text detected in this image.'
+    ) {
       void navigator.clipboard.writeText(text).then(() => {
         const originalHtml = copyOutputButton.innerHTML;
         copyOutputButton.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-strong)"><polyline points="20 6 9 17 4 12"></polyline></svg>`;

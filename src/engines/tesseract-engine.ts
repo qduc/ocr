@@ -1,5 +1,6 @@
 import { createWorker, type Worker } from 'tesseract.js';
 import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
+import { normalizeTesseractLanguage } from '@/utils/language-config';
 
 export type TesseractProgressCallback = (status: string, progress: number) => void;
 
@@ -21,7 +22,7 @@ export class TesseractEngine implements IOCREngine {
       this.language = 'eng';
     } else {
       this.onProgress = options?.onProgress;
-      this.language = options?.language ?? 'eng';
+      this.language = normalizeTesseractLanguage(options?.language ?? 'eng');
     }
   }
 
@@ -55,7 +56,7 @@ export class TesseractEngine implements IOCREngine {
     const result = await this.worker.recognize(blob);
     return {
       text: result.data.text ?? '',
-      items: result.data.words?.map(word => ({
+      items: result.data.words?.map((word) => ({
         text: word.text,
         confidence: word.confidence / 100,
         boundingBox: {
@@ -87,11 +88,11 @@ export class TesseractEngine implements IOCREngine {
     context.putImageData(imageData, 0, 0);
 
     if ('convertToBlob' in canvas) {
-      return await (canvas).convertToBlob({ type: 'image/png' });
+      return await canvas.convertToBlob({ type: 'image/png' });
     }
 
     return await new Promise<Blob>((resolve, reject) => {
-      (canvas).toBlob((blob) => {
+      canvas.toBlob((blob) => {
         if (blob) {
           resolve(blob);
         } else {
