@@ -2,6 +2,7 @@
   "name": "multi-engine-browser-ocr",
   "version": "1.0.0",
   "type": "module",
+  "license": "MIT",
   "description": "Multi-Engine Browser OCR System with Tesseract.js and Transformers.js",
   "scripts": {
     "dev": "vite",

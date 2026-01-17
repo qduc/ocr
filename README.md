@@ -1,104 +1,100 @@
-# Multi-Engine Browser OCR System
+# 🚀 Professional Browser OCR System
 
-A browser-based OCR system supporting multiple OCR engines using the Strategy Pattern.
+A high-performance, multi-engine OCR (Optical Character Recognition) system that runs entirely in your browser. No server uploads, no privacy concerns—just fast, secure text extraction.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF.svg)](https://vitejs.dev/)
 
-- **MVP Phase**: Tesseract.js OCR engine
-- **Post-MVP Phase**: Transformers.js with TrOCR model
-- **eSearch-OCR**: PaddleOCR-based engine for Chinese/English text
-- Pluggable architecture for easy engine addition
-- IndexedDB model caching
-- Web Worker-based processing
-- TypeScript with strict mode
+## ✨ Key Features
 
-## Getting Started
+- **🔒 Privacy First**: All processing happens locally on your device. Images never leave your browser.
+- **⚡ Multi-Engine Strategy**: Choose the best engine for your needs:
+  - **Tesseract.js**: The industry standard for general-purpose OCR.
+  - **Transformers.js (TrOCR)**: State-of-the-art AI accuracy using Transformer models.
+  - **eSearch-OCR (PaddleOCR)**: High-speed, high-accuracy engine optimized for Chinese/English mixed text.
+- **🔋 Performance Optimized**: Uses WebAssembly (WASM), Web Workers, and WebGPU acceleration for near-native speeds.
+- **📦 Intelligent Caching**: Heavy model files are cached in **IndexedDB** for instant subsequent loads.
+- **🎨 Glassmorphism UI**: A modern, clean interface with drag-and-drop, URL, and paste support.
+
+## 🛠️ OCR Engines Comparison
+
+| Engine              | Best For                         | Tech Stack    | Model Size         |
+| ------------------- | -------------------------------- | ------------- | ------------------ |
+| **Tesseract.js**    | General use, 100+ languages      | WASM          | ~4.3 MB (eng/fast) |
+| **Transformers.js** | Highest accuracy, modern AI      | WebGPU / ONNX | ~40-150 MB         |
+| **eSearch-OCR**     | Chinese/English, complex layouts | ONNX Runtime  | ~7-10 MB           |
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Modern Browser**:
+  - **Basic Support** (WASM/Workers): Chrome 92+, Firefox 79+, Safari 15.2+ (required for `SharedArrayBuffer`)
+  - **WebGPU Acceleration**: Chrome 113+, Firefox 121+, Safari 17+
+- **Node.js**: v18 or higher recommended
 
 ### Installation
 
-```bash
-npm install
-```
-
-### Setting Up eSearch-OCR Models (Optional)
-
-The eSearch-OCR engine requires PaddleOCR model files. To enable this engine:
-
-1. **Download models** from [eSearch-OCR releases](https://github.com/xushengfeng/eSearch-OCR/releases/tag/4.0.0):
+1. **Clone the repository**:
 
    ```bash
-   # Quick setup (downloads ~7 MB)
-   cd public/models/esearch
-   curl -LO https://github.com/xushengfeng/eSearch-OCR/releases/download/4.0.0/ch.zip
-   unzip ch.zip && rm ch.zip
+   git clone https://github.com/your-repo/multi-engine-browser-ocr.git
+   cd multi-engine-browser-ocr
    ```
 
-2. **Verify files exist**:
-   - `public/models/esearch/det.onnx` (text detection)
-   - `public/models/esearch/rec.onnx` (text recognition)
-   - `public/models/esearch/ppocr_keys_v1.txt` (character dictionary)
+2. **Install dependencies**:
 
-See [public/models/esearch/README.md](public/models/esearch/README.md) for detailed instructions and alternative hosting options.
+   ```bash
+   npm install
+   ```
 
-### Development
+3. **Start development server**:
+   ```bash
+   npm run dev
+   ```
 
-```bash
-npm run dev
-```
+### 🌍 Model Loading
 
-### Build
+Most engines download their models automatically from CDNs (Hugging Face or Tesseract CDN) on their first run and cache them locally.
 
-```bash
-npm run build
-```
+#### eSearch-OCR Manual Setup (Optional for Offline)
 
-### Testing
+By default, eSearch-OCR fetches models from Hugging Face. If you need to use it offline or host models yourself:
 
-```bash
-npm test
-```
+1. Download models from [eSearch-OCR releases](https://github.com/xushengfeng/eSearch-OCR/releases/tag/4.0.0).
+2. Place `det.onnx`, `rec.onnx`, and `ppocr_keys_v1.txt` into `public/models/esearch/`.
 
-### Linting
+## 📂 Project Structure
 
-```bash
-npm run lint
-```
+- `src/engines/`: Implementation of different OCR strategies.
+- `src/utils/`: Image processing, feature detection, and model caching.
+- `src/types/`: Shared TypeScript interfaces.
+- `tests/`: Comprehensive test suite using Vitest.
+- `docs/`: Technical specifications and decision logs.
 
-### Formatting
+## 🧪 Development Commands
 
-```bash
-npm run format
-```
+- `npm run dev`: Start Vite development server.
+- `npm run build`: Build for production.
+- `npm test`: Run all tests once.
+- `npm run test:watch`: Run tests in watch mode.
+- `npm run lint`: Check for code style issues.
+- `npm run format`: Automatically fix formatting.
 
-## Project Structure
+## �️ Privacy & Security
 
-```
-src/
-├── engines/     # OCR engine implementations
-├── utils/       # Utility functions
-├── types/       # TypeScript type definitions
-└── main.ts      # Application entry point
+This application is designed with security as a core principle:
 
-public/
-└── models/
-    └── esearch/ # eSearch-OCR model files (see README inside)
+- **No Data Collection**: Your images are processed entirely in the local browser context. No data is sent to external servers or APIs.
+- **Offline Capability**: Once the models are cached, the engine can function without an active internet connection.
+- **Open Source**: The entire pipeline is transparent and verifiable.
 
-tests/           # Test files
-```
+## 🤝 Contributing
 
-## OCR Engines
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) (if available) or simply open a Pull Request.
 
-| Engine | Description | Models Required |
-|--------|-------------|-----------------|
-| Tesseract.js | Default engine, auto-downloads models | None (auto) |
-| Transformers.js | TrOCR-based, auto-downloads models | None (auto) |
-| eSearch-OCR | PaddleOCR via ONNX, Chinese/English | Manual download (~7 MB) |
+## 📖 Documentation
 
-## Requirements
-
-- Modern browser with WASM, Web Workers, and IndexedDB support
-- Chrome 90+, Firefox 88+, or Safari 15+
-
-## Documentation
-
-See `.kiro/specs/multi-engine-browser-ocr/` for detailed requirements, design, and implementation plan.
+- [Technical Specification](docs/SPECIFICATION.md): Deep dive into architecture and design.
+- [Decision Log](docs/DECISION_LOG.md): Rationale behind technical choices.
