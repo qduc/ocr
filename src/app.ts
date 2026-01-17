@@ -66,20 +66,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             Tesseract.js powers fast local OCR with caching, no uploads, and a clear retry path.
           </p>
         </div>
-        <div class="status-card" data-stage="idle">
-          <div class="status-row">
-            <span class="status-label">Status</span>
-            <span id="status-text">Idle</span>
-          </div>
-          <div class="progress">
-            <div id="progress-bar" class="progress-bar"></div>
-          </div>
-          <div id="progress-text" class="progress-text">0%</div>
-          <div class="metrics">
-            <div id="load-metric">Load: --</div>
-            <div id="process-metric">Process: --</div>
-          </div>
-        </div>
       </header>
 
       <main class="main-grid">
@@ -96,24 +82,43 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           </div>
 
           <div class="input-methods">
-            <div class="file-input">
-              <label for="file-input" class="method-label">Upload File</label>
-              <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
-              <div id="file-meta" class="file-meta">No file selected.</div>
+            <div class="method-tabs" role="tablist" aria-label="Image source">
+              <button class="method-tab is-active" type="button" data-method="file" role="tab" aria-selected="true">
+                Upload
+              </button>
+              <button class="method-tab" type="button" data-method="url" role="tab" aria-selected="false">
+                URL
+              </button>
+              <button class="method-tab" type="button" data-method="paste" role="tab" aria-selected="false">
+                Paste/Drop
+              </button>
             </div>
-
-            <div class="url-input">
-              <label for="url-input" class="method-label">Image URL</label>
-              <div class="url-row">
-                <input id="url-input" type="url" placeholder="https://example.com/image.jpg" />
-                <button id="load-url-button" class="icon-button" title="Load image from URL">
-                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </button>
+            <div class="method-panels">
+              <div class="method-panel is-active" data-method="file" role="tabpanel">
+                <div class="file-input">
+                  <label for="file-input" class="method-label">Upload File</label>
+                  <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
+                  <div id="file-meta" class="file-meta">No file selected.</div>
+                </div>
               </div>
-            </div>
 
-            <div id="paste-area" class="paste-area">
-              <span>Paste image from clipboard (Ctrl+V)</span>
+              <div class="method-panel" data-method="url" role="tabpanel">
+                <div class="url-input">
+                  <label for="url-input" class="method-label">Image URL</label>
+                  <div class="url-row">
+                    <input id="url-input" type="url" placeholder="https://example.com/image.jpg" />
+                    <button id="load-url-button" class="icon-button" title="Load image from URL">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="method-panel" data-method="paste" role="tabpanel">
+                <div id="paste-area" class="paste-area" tabindex="0">
+                  <span>Paste image from clipboard (Ctrl+V)</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -136,6 +141,21 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           <div id="output" class="output">Upload an image to begin.</div>
         </section>
       </main>
+
+      <section class="status-card" data-stage="idle">
+        <div class="status-row">
+          <span class="status-label">Status</span>
+          <span id="status-text">Idle</span>
+        </div>
+        <div class="progress">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="progress-text" class="progress-text">0%</div>
+        <div class="metrics">
+          <div id="load-metric">Load: --</div>
+          <div id="process-metric">Process: --</div>
+        </div>
+      </section>
 
       <section id="error-panel" class="panel error-panel hidden">
         <div class="error-header">
@@ -187,6 +207,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
   const pasteArea = root.querySelector<HTMLDivElement>('#paste-area');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
+  const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
+  const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
 
   if (
     !statusCard ||
@@ -217,7 +239,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !copyOutputButton ||
     !urlInput ||
     !loadUrlButton ||
-    !pasteArea
+    !pasteArea ||
+    methodTabs.length === 0 ||
+    methodPanels.length === 0
   ) {
     throw new Error('UI elements missing.');
   }
@@ -242,6 +266,24 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let lastResult: OCRResult | null = null;
   let lastProcessedWidth: number = 0;
   let lastProcessedHeight: number = 0;
+
+  const setActiveMethod = (method: string): void => {
+    methodTabs.forEach((tab): void => {
+      const isActive = tab.dataset.method === method;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+    methodPanels.forEach((panel): void => {
+      panel.classList.toggle('is-active', panel.dataset.method === method);
+    });
+    if (method === 'file') {
+      fileInput.focus();
+    } else if (method === 'url') {
+      urlInput.focus();
+    } else if (method === 'paste') {
+      pasteArea.focus();
+    }
+  };
 
   const languageOptionsByEngine: Record<string, Record<string, string>> = {
     tesseract: TESSERACT_LANGUAGES,
@@ -525,6 +567,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   fileInput.addEventListener('change', (): void => {
     const file = fileInput.files?.[0];
     if (file) {
+      setActiveMethod('file');
       loadImage(file);
     } else {
       imagePreviewContainer.classList.add('hidden');
@@ -537,6 +580,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   loadUrlButton.addEventListener('click', (): void => {
     const url = urlInput.value.trim();
     if (url) {
+      setActiveMethod('url');
       loadImage(url);
     }
   });
@@ -545,10 +589,19 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     if (e.key === 'Enter') {
       const url = urlInput.value.trim();
       if (url) {
+        setActiveMethod('url');
         loadImage(url);
       }
     }
   });
+
+  methodTabs.forEach((tab): void => {
+    tab.addEventListener('click', (): void => {
+      const method = tab.dataset.method ?? 'file';
+      setActiveMethod(method);
+    });
+  });
+  setActiveMethod(methodTabs[0]?.dataset.method ?? 'file');
 
   const handlePaste = (e: ClipboardEvent): void => {
     const items = e.clipboardData?.items;
@@ -558,6 +611,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       if (item.type.startsWith('image/')) {
         const blob = item.getAsFile();
         if (blob) {
+          setActiveMethod('paste');
           loadImage(blob);
           break;
         }
@@ -581,6 +635,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     pasteArea.classList.remove('drag-over');
     const file = e.dataTransfer?.files[0];
     if (file && file.type.startsWith('image/')) {
+      setActiveMethod('paste');
       loadImage(file);
     }
   });
