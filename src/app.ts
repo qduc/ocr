@@ -131,31 +131,33 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           <button id="run-button" class="primary-button" type="button">Extract text</button>
         </section>
 
-        <section class="panel result-panel">
-          <div class="result-header">
-            <h2>2. OCR output</h2>
-            <button id="copy-output-button" class="icon-button hidden" title="Copy all text">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            </button>
-          </div>
-          <div id="output" class="output">Upload an image to begin.</div>
-        </section>
-      </main>
+        <div class="results-column">
+          <section class="status-card" data-stage="idle">
+            <div class="status-row">
+              <span class="status-label">Status</span>
+              <span id="status-text">Idle</span>
+            </div>
+            <div class="progress">
+              <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div id="progress-text" class="progress-text">0%</div>
+            <div class="metrics">
+              <div id="load-metric">Load: --</div>
+              <div id="process-metric">Process: --</div>
+            </div>
+          </section>
 
-      <section class="status-card" data-stage="idle">
-        <div class="status-row">
-          <span class="status-label">Status</span>
-          <span id="status-text">Idle</span>
+          <section class="panel result-panel">
+            <div class="result-header">
+              <h2>2. OCR output</h2>
+              <button id="copy-output-button" class="icon-button hidden" title="Copy all text">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+            <div id="output" class="output">Upload an image to begin.</div>
+          </section>
         </div>
-        <div class="progress">
-          <div id="progress-bar" class="progress-bar"></div>
-        </div>
-        <div id="progress-text" class="progress-text">0%</div>
-        <div class="metrics">
-          <div id="load-metric">Load: --</div>
-          <div id="process-metric">Process: --</div>
-        </div>
-      </section>
+      </main>
 
       <section id="error-panel" class="panel error-panel hidden">
         <div class="error-header">
