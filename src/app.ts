@@ -65,7 +65,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           <p class="eyebrow">Multi-Engine OCR</p>
           <h1>Extract text directly in your browser.</h1>
           <p class="subtitle">
-            Tesseract.js powers fast local OCR with caching, no uploads, and a clear retry path.
+            Privacy-first OCR powered by modern browser technologies like WebAssembly and WebGPU.
           </p>
         </div>
       </header>

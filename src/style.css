@@ -57,7 +57,7 @@ p {
 }
 
 .page {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -143,21 +143,35 @@ p {
   background: linear-gradient(90deg, #b23a1a, #dd7b55);
 }
 
+.upload-panel {
+  scrollbar-width: none;
+  /* Hide scrollbar Firefox */
+  -ms-overflow-style: none;
+  /* Hide scrollbar IE/Edge */
+}
+
+.upload-panel::-webkit-scrollbar {
+  display: none;
+  /* Hide scrollbar Chrome/Safari */
+}
 .main-grid {
   display: grid;
   gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
 }
 
 .results-column {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  min-height: 0;
-  height: 100%;
+  gap: 16px;
+  height: 0;
+  min-height: 100%;
 }
 
-.results-column .result-panel {
+.result-panel {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
@@ -170,6 +184,8 @@ p {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  /* Add this to ensure panels can shrink */
 }
 
 .panel-subtitle {
@@ -400,10 +416,9 @@ p {
   border-color: var(--accent);
 }
 .output {
-  min-height: 150px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  height: 0;
   white-space: pre-wrap;
   background: #fdfaf4;
   border-radius: 12px;
@@ -412,6 +427,20 @@ p {
   font-size: 0.95rem;
   line-height: 1.5;
   position: relative;
+  scrollbar-width: thin;
+}
+
+.output::-webkit-scrollbar {
+  width: 6px;
+}
+
+.output::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.output::-webkit-scrollbar-thumb {
+  background: rgba(26, 26, 26, 0.12);
+  border-radius: 10px;
 }
 
 .error-panel {
@@ -604,7 +633,25 @@ p {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  .page {
+    height: auto;
+    min-height: 0;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .results-column {
+    height: auto;
+    min-height: 0;
+  }
+
+  .output {
+    min-height: 300px;
+    max-height: 500px;
+  }
   #app {
     padding: 32px 16px 48px;
   }
