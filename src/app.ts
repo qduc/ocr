@@ -555,8 +555,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
     if (source instanceof Blob) {
       currentPreviewUrl = URL.createObjectURL(source);
+      imagePreview.removeAttribute('crossorigin');
       imagePreview.src = currentPreviewUrl;
     } else {
+      imagePreview.crossOrigin = 'anonymous';
       imagePreview.src = source;
     }
 

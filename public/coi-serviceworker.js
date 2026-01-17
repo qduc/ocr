@@ -24,8 +24,6 @@ if (typeof window === "undefined") {
                     statusText: response.statusText,
                     headers: newHeaders,
                 });
-            }).catch(e => {
-                console.error(e);
             })
         );
     });
