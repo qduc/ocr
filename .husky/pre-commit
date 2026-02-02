@@ -1,1 +1,5 @@
+#!/bin/sh
+. "$(dirname "$0")/_/h"
+
+npm run typecheck
 npx lint-staged

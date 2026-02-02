@@ -133,7 +133,7 @@ export class EasyOCREngine implements IOCREngine {
   private getLanguageConfig(language: string): {
     model: string;
     charset: string;
-    textInputName: string;
+    textInputName?: string;
   } {
     return resolveModelForLanguage(language);
   }

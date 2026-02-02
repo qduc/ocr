@@ -161,7 +161,7 @@ export class ModelCache {
     await this.storage.set(key, data);
   }
 
-  async loadOrFetch(key: string, fetcher: () => Promise<ArrayBuffer>): Promise<ArrayBuffer> {
+  async loadOrFetch(key: string, fetcher: () => Promise<ArrayBufferLike>): Promise<ArrayBuffer> {
     if (this.storage) {
       await this.storage.init();
       const cached = await this.storage.get(key);
@@ -173,11 +173,22 @@ export class ModelCache {
       console.warn('IndexedDB is unavailable; caching is disabled.');
     }
 
-    const data = await fetcher();
-    if (this.storage) {
-      await this.storage.set(key, data);
+    const dataLike = await fetcher();
+    // Ensure we store and return an ArrayBuffer. If the fetcher returned a
+    // SharedArrayBuffer or other ArrayBufferLike, make a copy into a regular
+    // ArrayBuffer before storing/returning.
+    let buffer: ArrayBuffer;
+    if (dataLike instanceof ArrayBuffer) {
+      buffer = dataLike;
+    } else {
+      // Create a Uint8Array view and copy the contents to a new ArrayBuffer.
+      buffer = new Uint8Array(dataLike as ArrayBufferLike).slice().buffer;
     }
 
-    return data;
+    if (this.storage) {
+      await this.storage.set(key, buffer);
+    }
+
+    return buffer;
   }
 }
