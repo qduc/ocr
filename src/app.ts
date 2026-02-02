@@ -12,7 +12,11 @@ import {
 import { OCRError } from '@/types/ocr-errors';
 import type { OCRResult } from '@/types/ocr-engine';
 import { ENGINE_CONFIGS } from '@/types/ocr-models';
-import { SUPPORTED_LANGUAGES, TESSERACT_LANGUAGES } from '@/utils/language-config';
+import {
+  SUPPORTED_LANGUAGES,
+  TESSERACT_LANGUAGES,
+  EASYOCR_LANGUAGES,
+} from '@/utils/language-config';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
 
@@ -265,6 +269,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const selectedLanguages: Record<string, string> = {
     tesseract: 'eng',
     esearch: 'english',
+    easyocr: 'en',
   };
   let activeEngineId: string | null = null;
   let activeLanguage: string | null = null;
@@ -292,8 +297,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const languageOptionsByEngine: Record<string, Record<string, string>> = {
     tesseract: TESSERACT_LANGUAGES,
     esearch: SUPPORTED_LANGUAGES,
+    easyocr: EASYOCR_LANGUAGES,
   };
-  const webgpuEngines = new Set(['transformers', 'esearch']);
+  const webgpuEngines = new Set(['transformers', 'esearch', 'easyocr']);
 
   const supportsLanguageSelection = (engineId: string): boolean =>
     Boolean(languageOptionsByEngine[engineId]);
@@ -390,6 +396,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading eSearch-OCR: ${status}`, percent);
+        },
+      });
+    });
+    engineFactory.register('easyocr', async (options) => {
+      const { EasyOCREngine } = await import('@/engines/easyocr-engine');
+      return new EasyOCREngine({
+        language: options?.language,
+        onProgress: (status: string, progress: number): void => {
+          const percent = Math.round((progress ?? 0) * 100);
+          setStage('loading', `Loading EasyOCR: ${status}`, percent);
         },
       });
     });

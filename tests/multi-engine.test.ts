@@ -275,7 +275,7 @@ describe('Multi-engine eSearch integration', () => {
     expect(transformersDestroyed).not.toHaveBeenCalled();
   });
 
-  it('cycles through all three engines with proper cleanup', async () => {
+  it('cycles through all four engines with proper cleanup', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
@@ -284,6 +284,7 @@ describe('Multi-engine eSearch integration', () => {
     const tesseractDestroyed = vi.fn();
     const transformersDestroyed = vi.fn();
     const esearchDestroyed = vi.fn();
+    const easyocrDestroyed = vi.fn();
 
     factory.register('tesseract', () => ({
       id: 'tesseract',
@@ -307,6 +308,14 @@ describe('Multi-engine eSearch integration', () => {
       load: (): Promise<void> => Promise.resolve(),
       process: (): Promise<{ text: string }> => Promise.resolve({ text: 'eSearch output' }),
       destroy: (): Promise<void> => Promise.resolve(void esearchDestroyed()),
+    }));
+
+    factory.register('easyocr', () => ({
+      id: 'easyocr',
+      isLoading: false,
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<{ text: string }> => Promise.resolve({ text: 'EasyOCR output' }),
+      destroy: (): Promise<void> => Promise.resolve(void easyocrDestroyed()),
     }));
 
     const manager = new OCRManager(factory);
@@ -342,12 +351,20 @@ describe('Multi-engine eSearch integration', () => {
     expect(app.elements.output.textContent).toBe('Transformers output');
     expect(esearchDestroyed).toHaveBeenCalledTimes(1);
 
+    // Switch to easyocr
+    app.elements.engineSelect.value = 'easyocr';
+    app.elements.engineSelect.dispatchEvent(new Event('change'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await app.runOcr();
+    expect(app.elements.output.textContent).toBe('EasyOCR output');
+    expect(transformersDestroyed).toHaveBeenCalledTimes(1);
+
     // Switch back to tesseract
     app.elements.engineSelect.value = 'tesseract';
     app.elements.engineSelect.dispatchEvent(new Event('change'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     await app.runOcr();
     expect(app.elements.output.textContent).toBe('Tesseract output');
-    expect(transformersDestroyed).toHaveBeenCalledTimes(1);
+    expect(easyocrDestroyed).toHaveBeenCalledTimes(1);
   });
 });

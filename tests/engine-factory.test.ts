@@ -134,7 +134,7 @@ describe('EngineFactory eSearch engine tests', () => {
     expect(engine.id).toBe('esearch');
   });
 
-  it('registers all three engines and lists them', () => {
+  it('registers all four engines and lists them', () => {
     const factory = new EngineFactory();
 
     factory.register('tesseract', () => ({
@@ -161,8 +161,16 @@ describe('EngineFactory eSearch engine tests', () => {
       destroy: (): Promise<void> => Promise.resolve(),
     }));
 
+    factory.register('easyocr', () => ({
+      id: 'easyocr',
+      isLoading: false,
+      load: (): Promise<void> => Promise.resolve(),
+      process: (): Promise<string> => Promise.resolve(''),
+      destroy: (): Promise<void> => Promise.resolve(),
+    }));
+
     const engines = factory.getAvailableEngines().sort();
-    expect(engines).toEqual(['esearch', 'tesseract', 'transformers']);
+    expect(engines).toEqual(['easyocr', 'esearch', 'tesseract', 'transformers']);
   });
 
   it('esearch appears in getAvailableEngines() after registration', () => {
@@ -183,13 +191,17 @@ describe('EngineFactory eSearch engine tests', () => {
 
   it('async esearch engine creator works correctly', async () => {
     const factory = new EngineFactory();
-    factory.register('esearch', (): Promise<IOCREngine> => Promise.resolve({
-      id: 'esearch',
-      isLoading: false,
-      load: (): Promise<void> => Promise.resolve(),
-      process: (): Promise<string> => Promise.resolve('async result'),
-      destroy: (): Promise<void> => Promise.resolve(),
-    }));
+    factory.register(
+      'esearch',
+      (): Promise<IOCREngine> =>
+        Promise.resolve({
+          id: 'esearch',
+          isLoading: false,
+          load: (): Promise<void> => Promise.resolve(),
+          process: (): Promise<string> => Promise.resolve('async result'),
+          destroy: (): Promise<void> => Promise.resolve(),
+        })
+    );
 
     const engine = await factory.create('esearch');
     expect(engine.id).toBe('esearch');

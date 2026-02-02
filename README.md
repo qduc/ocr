@@ -13,6 +13,7 @@ A high-performance, multi-engine OCR (Optical Character Recognition) system that
   - **Tesseract.js**: The industry standard for general-purpose OCR.
   - **Transformers.js (TrOCR)**: State-of-the-art AI accuracy using Transformer models.
   - **eSearch-OCR (PaddleOCR)**: High-speed, high-accuracy engine optimized for Chinese/English mixed text.
+  - **EasyOCR.js**: EasyOCR models running locally with ONNX Runtime.
 - **🔋 Performance Optimized**: Uses WebAssembly (WASM), Web Workers, and WebGPU acceleration for near-native speeds.
 - **📦 Intelligent Caching**: Heavy model files are cached in **IndexedDB** for instant subsequent loads.
 - **🎨 Glassmorphism UI**: A modern, clean interface with drag-and-drop, URL, and paste support.
@@ -24,6 +25,7 @@ A high-performance, multi-engine OCR (Optical Character Recognition) system that
 | **Tesseract.js**    | General use, 100+ languages      | WASM          | ~4.3 MB (eng/fast) |
 | **Transformers.js** | Highest accuracy, modern AI      | WebGPU / ONNX | ~40-150 MB         |
 | **eSearch-OCR**     | Chinese/English, complex layouts | ONNX Runtime  | ~7-10 MB           |
+| **EasyOCR.js**      | Multilingual OCR with EasyOCR    | ONNX Runtime  | ~110 MB            |
 
 ## 🚀 Getting Started
 

@@ -10,19 +10,21 @@ The system uses a **Strategy Pattern** managed by a **Factory Service**. This de
 
 ### Core Design Principles
 
-* **Lazy Loading:** Libraries and models are only downloaded when the specific engine is selected.
-* **Resource Isolation:** Each engine runs in a dedicated **Web Worker** to keep the UI responsive.
-* **Memory Hygiene:** A strict lifecycle ensures that when an engine is swapped, the previous engine's memory (WASM heap or GPU tensors) is explicitly cleared.
+- **Lazy Loading:** Libraries and models are only downloaded when the specific engine is selected.
+- **Resource Isolation:** Each engine runs in a dedicated **Web Worker** to keep the UI responsive.
+- **Memory Hygiene:** A strict lifecycle ensures that when an engine is swapped, the previous engine's memory (WASM heap or GPU tensors) is explicitly cleared.
 
 ### Implementation Scope
 
 **MVP (Phase 1)**:
+
 - Single engine: Tesseract.js v5.x
 - Desktop browsers only (Chrome 90+, Firefox 88+, Safari 15+)
 - ImageData input, plain string output
 - IndexedDB model caching
 
 **Post-MVP (Phase 2)**:
+
 - Second engine: Transformers.js with TrOCR model
 - Validates Strategy Pattern with multi-engine architecture
 - Adds WebGPU acceleration capability
@@ -31,12 +33,12 @@ The system uses a **Strategy Pattern** managed by a **Factory Service**. This de
 
 ## 2. The Implementation Stack
 
-| Layer | Technology | Purpose |
-| --- | --- | --- |
-| **Orchestrator** | TypeScript / JavaScript | Manages engine switching and state. |
-| **Processing** | WebAssembly (WASM) | Executes C++/Rust OCR logic at native speed. |
-| **Acceleration** | WebGPU / ONNX Runtime | Uses the user's GPU for transformer-based models. |
-| **Storage** | IndexedDB / OPFS | Caches heavy model files (10MB+) for instant reloads. |
+| Layer            | Technology              | Purpose                                               |
+| ---------------- | ----------------------- | ----------------------------------------------------- |
+| **Orchestrator** | TypeScript / JavaScript | Manages engine switching and state.                   |
+| **Processing**   | WebAssembly (WASM)      | Executes C++/Rust OCR logic at native speed.          |
+| **Acceleration** | WebGPU / ONNX Runtime   | Uses the user's GPU for transformer-based models.     |
+| **Storage**      | IndexedDB / OPFS        | Caches heavy model files (10MB+) for instant reloads. |
 
 ---
 
@@ -49,11 +51,11 @@ This "Contract" ensures that regardless of the library used, the application int
 ```typescript
 /** Standard interface for all OCR drivers */
 interface IOCREngine {
-  id: string;                             // Unique identifier (e.g., "tesseract", "transformers")
-  isLoading: boolean;                     // Current loading state for UI feedback
-  load(): Promise<void>;                  // Setup: download assets & init worker
+  id: string; // Unique identifier (e.g., "tesseract", "transformers")
+  isLoading: boolean; // Current loading state for UI feedback
+  load(): Promise<void>; // Setup: download assets & init worker
   process(data: ImageData): Promise<string>; // Execution: the actual OCR task
-  destroy(): Promise<void>;               // Cleanup: kill workers & clear RAM
+  destroy(): Promise<void>; // Cleanup: kill workers & clear RAM
 }
 ```
 
@@ -64,8 +66,8 @@ interface IOCREngine {
   ```typescript
   interface OCRResult {
     text: string;
-    confidence?: number;  // 0-100 quality score
-    language?: string;    // ISO 639-1 code (e.g., 'en')
+    confidence?: number; // 0-100 quality score
+    language?: string; // ISO 639-1 code (e.g., 'en')
   }
   ```
 
@@ -74,6 +76,7 @@ interface IOCREngine {
 The Manager handles the "One at a Time" constraint. It ensures that `Engine A` is fully disposed of before `Engine B` starts.
 
 **MVP Implementation** (single engine):
+
 ```typescript
 class OCRManager {
   private activeEngine: IOCREngine | null = null;
@@ -95,7 +98,7 @@ class OCRManager {
   }
 
   async run(image: ImageData): Promise<string> {
-    if (!this.activeEngine) throw new Error("Engine not initialized.");
+    if (!this.activeEngine) throw new Error('Engine not initialized.');
     return await this.activeEngine.process(image);
   }
 
@@ -106,6 +109,7 @@ class OCRManager {
 ```
 
 **Post-MVP Implementation** (multi-engine):
+
 ```typescript
 class OCRManager {
   private activeEngine: IOCREngine | null = null;
@@ -137,7 +141,7 @@ class OCRManager {
   }
 
   async run(image: ImageData): Promise<string> {
-    if (!this.activeEngine) throw new Error("Select an engine first.");
+    if (!this.activeEngine) throw new Error('Select an engine first.');
     return await this.activeEngine.process(image);
   }
 
@@ -184,9 +188,9 @@ class OCRManager {
 > [!IMPORTANT]
 > **WASM Memory Limits:** Browsers usually limit WASM memory to 2GB or 4GB. If you don't call `.destroy()` when switching engines, users on mobile devices or low-RAM laptops will experience "Out of Memory" crashes after 3–4 switches.
 
-* **Pre-processing is King:** Most browser OCR engines perform significantly better if you convert the image to grayscale and increase contrast using a simple Canvas filter *before* passing it to the engine.
-* **Progress Indicators:** Because models can be large (20MB+), always implement a progress bar for the `load()` phase so the user knows the app is downloading data, not frozen.
-* **WebGPU Fallback:** If using modern transformer models, always check `if (!navigator.gpu)` and fallback to a WASM-only engine if the user's hardware is older.
+- **Pre-processing is King:** Most browser OCR engines perform significantly better if you convert the image to grayscale and increase contrast using a simple Canvas filter _before_ passing it to the engine.
+- **Progress Indicators:** Because models can be large (20MB+), always implement a progress bar for the `load()` phase so the user knows the app is downloading data, not frozen.
+- **WebGPU Fallback:** If using modern transformer models, always check `if (!navigator.gpu)` and fallback to a WASM-only engine if the user's hardware is older.
 
 ---
 
@@ -195,11 +199,13 @@ class OCRManager {
 ### A. Tesseract.js Engine (MVP)
 
 **Installation:**
+
 ```bash
 npm install tesseract.js
 ```
 
 **Implementation:**
+
 ```typescript
 // engines/tesseract.engine.ts
 import Tesseract, { Worker } from 'tesseract.js';
@@ -214,8 +220,8 @@ export class TesseractEngine implements IOCREngine {
     try {
       // Create worker with automatic caching
       this.worker = await Tesseract.createWorker('eng', 1, {
-        cacheMethod: 'refresh',  // Use IndexedDB cache
-        cachePath: '.',          // Default cache location
+        cacheMethod: 'refresh', // Use IndexedDB cache
+        cachePath: '.', // Default cache location
       });
       console.log('Tesseract.js engine loaded');
     } finally {
@@ -243,6 +249,7 @@ export class TesseractEngine implements IOCREngine {
 ```
 
 **Characteristics:**
+
 - Bundle size: ~2MB core + ~4MB English model
 - Performance: 2-5 seconds for typical document
 - Browser support: All browsers with WASM (Chrome 90+, Firefox 88+, Safari 15+)
@@ -253,11 +260,13 @@ export class TesseractEngine implements IOCREngine {
 ### B. Transformers.js Engine (Post-MVP)
 
 **Installation:**
+
 ```bash
 npm install @huggingface/transformers
 ```
 
 **Implementation:**
+
 ```typescript
 // engines/transformers.engine.ts
 import { pipeline, ImageToTextPipeline } from '@huggingface/transformers';
@@ -272,13 +281,9 @@ export class TransformersEngine implements IOCREngine {
     try {
       // Load TrOCR model (quantized for browser)
       // Model automatically cached in IndexedDB
-      this.ocr = await pipeline(
-        'image-to-text',
-        'Xenova/trocr-small-printed',
-        {
-          quantized: true,  // Use quantized model for smaller size
-        }
-      );
+      this.ocr = await pipeline('image-to-text', 'Xenova/trocr-small-printed', {
+        quantized: true, // Use quantized model for smaller size
+      });
       console.log('Transformers.js engine loaded');
     } finally {
       this.isLoading = false;
@@ -304,6 +309,7 @@ export class TransformersEngine implements IOCREngine {
 ```
 
 **Characteristics:**
+
 - Bundle size: Variable (model-dependent, typically 50-150MB quantized)
 - Performance: 1-3 seconds with WebGPU, 5-10 seconds CPU fallback
 - Browser support: WebGPU recommended (Chrome 113+, limited Safari/Firefox)
@@ -311,6 +317,7 @@ export class TransformersEngine implements IOCREngine {
 - Accuracy: Higher than Tesseract on printed text
 
 **WebGPU Detection:**
+
 ```typescript
 // Check before loading Transformers engine
 if (!navigator.gpu) {
@@ -321,9 +328,40 @@ if (!navigator.gpu) {
 
 ---
 
+### C. EasyOCR.js Engine (Post-MVP)
+
+**Installation:**
+
+```bash
+npm install @qduc/easyocr-core @qduc/easyocr-web onnxruntime-web
+```
+
+**Implementation:**
+
+```typescript
+// engines/easyocr-engine.ts
+import { loadDetectorModel, loadRecognizerModel, recognize } from '@qduc/easyocr-web';
+
+export class EasyOCREngine implements IOCREngine {
+  public id = 'easyocr';
+  // ... implementation details ...
+}
+```
+
+**Characteristics:**
+
+- Bundle size: ~110MB for detection + recognition models
+- Performance: 2-5 seconds (WASM/WebGL)
+- Browser support: Extensive (WASM + ONNX Runtime)
+- Memory usage: ~300-600MB during processing
+- Accuracy: Very high for multilingual text
+
+---
+
 ## 7. Feature Detection & Browser Support
 
 **Required Features Check:**
+
 ```typescript
 // utils/feature-detection.ts
 export function checkBrowserSupport(): { supported: boolean; missing: string[] } {
@@ -352,25 +390,26 @@ const { supported, missing } = checkBrowserSupport();
 if (!supported) {
   throw new Error(
     `Browser not supported. Missing: ${missing.join(', ')}. ` +
-    `Please use Chrome 90+, Firefox 88+, or Safari 15+.`
+      `Please use Chrome 90+, Firefox 88+, or Safari 15+.`
   );
 }
 ```
 
 **Minimum Browser Versions:**
 
-| Browser | Version | WASM | Workers | IndexedDB | WebGPU |
-|---------|---------|------|---------|-----------|--------|
-| Chrome/Edge | 90+ | ✅ | ✅ | ✅ | 113+ |
-| Firefox | 88+ | ✅ | ✅ | ✅ | 141+ (limited) |
-| Safari | 15+ | ✅ | ✅ | ✅ | 26+ (limited) |
-| Mobile | Post-MVP | - | - | - | - |
+| Browser     | Version  | WASM | Workers | IndexedDB | WebGPU         |
+| ----------- | -------- | ---- | ------- | --------- | -------------- |
+| Chrome/Edge | 90+      | ✅   | ✅      | ✅        | 113+           |
+| Firefox     | 88+      | ✅   | ✅      | ✅        | 141+ (limited) |
+| Safari      | 15+      | ✅   | ✅      | ✅        | 26+ (limited)  |
+| Mobile      | Post-MVP | -    | -       | -         | -              |
 
 ---
 
 ## 8. Implementation Checklist
 
 **MVP (Tesseract.js only):**
+
 - [ ] Install dependencies: `npm install tesseract.js`
 - [ ] Create `IOCREngine` interface
 - [ ] Implement `TesseractEngine` class
@@ -382,12 +421,14 @@ if (!supported) {
 - [ ] Verify IndexedDB caching works
 - [ ] Verify worker cleanup on page unload
 
-**Post-MVP (Add Transformers.js):**
-- [ ] Install dependencies: `npm install @huggingface/transformers`
+**Post-MVP (Add Transformers.js and EasyOCR.js):**
+
+- [ ] Install dependencies: `@huggingface/transformers`, `@qduc/easyocr-web`
 - [ ] Implement `TransformersEngine` class
+- [ ] Implement `EasyOCREngine` class
 - [ ] Add WebGPU feature detection
 - [ ] Update `OCRManager` to support multiple engines
 - [ ] Add engine selection UI (dropdown)
 - [ ] Test engine switching (memory cleanup)
-- [ ] Performance comparison (Tesseract vs Transformers)
+- [ ] Performance comparison (Tesseract vs Transformers vs EasyOCR)
 - [ ] Document WebGPU browser support limitations

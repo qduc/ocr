@@ -1,3 +1,5 @@
+import { getSupportedLanguages } from '@qduc/easyocr-core';
+
 /**
  * Languages supported by the monkt/paddleocr-onnx model repository.
  * Each entry maps a display name to the subfolder name in HF.
@@ -175,6 +177,44 @@ export function normalizeTesseractLanguage(input: string): string {
   // Default to English if no match found
   return 'eng';
 }
+
+/**
+ * Languages supported by EasyOCR.js.
+ */
+const EASYOCR_LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  la: 'Latin',
+  ch_sim: 'Chinese (Simplified)',
+  ja: 'Japanese',
+  ko: 'Korean',
+  te: 'Telugu',
+  kn: 'Kannada',
+  rs_latin: 'Serbian (Latin)',
+  rs_cyrillic: 'Serbian (Cyrillic)',
+};
+
+const easyOcrDisplayNames =
+  typeof Intl !== 'undefined' && 'DisplayNames' in Intl
+    ? new Intl.DisplayNames(['en'], { type: 'language' })
+    : null;
+
+const formatEasyOcrLabel = (code: string): string => {
+  if (EASYOCR_LANGUAGE_LABELS[code]) {
+    return EASYOCR_LANGUAGE_LABELS[code];
+  }
+  const normalized = code.replace('_', '-');
+  let name: string | undefined;
+  try {
+    name = easyOcrDisplayNames?.of(normalized);
+  } catch {
+    name = undefined;
+  }
+  return name ?? code;
+};
+
+export const EASYOCR_LANGUAGES: Record<string, string> = Object.fromEntries(
+  getSupportedLanguages().map(({ code, label }) => [code, label ?? formatEasyOcrLabel(code)])
+);
 
 const HF_BASE_URL = 'https://huggingface.co/monkt/paddleocr-onnx/resolve/main';
 

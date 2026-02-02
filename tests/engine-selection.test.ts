@@ -17,7 +17,9 @@ const createSupportedDetector = (): FeatureDetector =>
     }),
   }) as FeatureDetector;
 
-const registerEngines = (factory: { register: (id: string, creator: () => unknown) => void }): void => {
+const registerEngines = (factory: {
+  register: (id: string, creator: () => unknown) => void;
+}): void => {
   factory.register('tesseract', () => ({
     id: 'tesseract',
     isLoading: false,
@@ -32,6 +34,13 @@ const registerEngines = (factory: { register: (id: string, creator: () => unknow
     process: (): Promise<{ text: string }> => Promise.resolve({ text: '' }),
     destroy: (): Promise<void> => Promise.resolve(),
   }));
+  factory.register('easyocr', () => ({
+    id: 'easyocr',
+    isLoading: false,
+    load: (): Promise<void> => Promise.resolve(),
+    process: (): Promise<{ text: string }> => Promise.resolve({ text: '' }),
+    destroy: (): Promise<void> => Promise.resolve(),
+  }));
 };
 
 describe('Engine selection property tests', () => {
@@ -41,39 +50,42 @@ describe('Engine selection property tests', () => {
 
   it('persists engine selection across sessions', async () => {
     await fc.assert(
-      fc.asyncProperty(fc.constantFrom('tesseract', 'transformers'), async (engineId) => {
-        await Promise.resolve();
-        document.body.innerHTML = '<div id="app"></div>';
-        const root = document.querySelector<HTMLElement>('#app');
-        if (!root) throw new Error('Missing root');
+      fc.asyncProperty(
+        fc.constantFrom('tesseract', 'transformers', 'easyocr'),
+        async (engineId) => {
+          await Promise.resolve();
+          document.body.innerHTML = '<div id="app"></div>';
+          const root = document.querySelector<HTMLElement>('#app');
+          if (!root) throw new Error('Missing root');
 
-        initApp({
-          root,
-          featureDetector: createSupportedDetector(),
-          ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
-          registerEngines,
-        });
+          initApp({
+            root,
+            featureDetector: createSupportedDetector(),
+            ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
+            registerEngines,
+          });
 
-        const select = root.querySelector<HTMLSelectElement>('#engine-select');
-        if (!select) throw new Error('Missing select');
+          const select = root.querySelector<HTMLSelectElement>('#engine-select');
+          if (!select) throw new Error('Missing select');
 
-        select.value = engineId;
-        select.dispatchEvent(new Event('change'));
+          select.value = engineId;
+          select.dispatchEvent(new Event('change'));
 
-        document.body.innerHTML = '<div id="app"></div>';
-        const newRoot = document.querySelector<HTMLElement>('#app');
-        if (!newRoot) throw new Error('Missing root');
+          document.body.innerHTML = '<div id="app"></div>';
+          const newRoot = document.querySelector<HTMLElement>('#app');
+          if (!newRoot) throw new Error('Missing root');
 
-        initApp({
-          root: newRoot,
-          featureDetector: createSupportedDetector(),
-          ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
-          registerEngines,
-        });
+          initApp({
+            root: newRoot,
+            featureDetector: createSupportedDetector(),
+            ocrManager: { setEngine: vi.fn(), run: vi.fn() } as unknown as OCRManager,
+            registerEngines,
+          });
 
-        const restoredSelect = newRoot.querySelector<HTMLSelectElement>('#engine-select');
-        expect(restoredSelect?.value).toBe(engineId);
-      }),
+          const restoredSelect = newRoot.querySelector<HTMLSelectElement>('#engine-select');
+          expect(restoredSelect?.value).toBe(engineId);
+        }
+      ),
       { numRuns: 10 }
     );
   });
@@ -97,7 +109,7 @@ describe('Engine selection unit tests', () => {
     });
 
     const options = root.querySelectorAll<HTMLSelectElement>('#engine-select option');
-    expect(options.length).toBe(2);
+    expect(options.length).toBe(3);
   });
 
   it('switches engines when the selection changes', async () => {

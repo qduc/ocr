@@ -49,19 +49,56 @@ class IndexedDBStorage implements ModelCacheStorage {
   }
 
   private async getDb(): Promise<IDBDatabase> {
-    if (!this.dbPromise) {
-      this.dbPromise = new Promise((resolve, reject) => {
-        const request = this.idb.open(this.dbName, 1);
-        request.onupgradeneeded = (): void => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(this.storeName)) {
-            db.createObjectStore(this.storeName);
+    if (this.dbPromise) {
+      return this.dbPromise;
+    }
+
+    this.dbPromise = new Promise((resolve, reject) => {
+      // First, open without version to see what we have
+      const openRequest = this.idb.open(this.dbName);
+
+      openRequest.onerror = (): void => {
+        this.dbPromise = null;
+        reject(openRequest.error ?? new Error('IndexedDB open failed.'));
+      };
+
+      openRequest.onsuccess = (): void => {
+        const db = openRequest.result;
+        if (db.objectStoreNames.contains(this.storeName)) {
+          resolve(db);
+          return;
+        }
+
+        // Store doesn't exist, need to upgrade
+        const currentVersion = db.version;
+        db.close();
+
+        const upgradeRequest = this.idb.open(this.dbName, currentVersion + 1);
+
+        upgradeRequest.onupgradeneeded = (): void => {
+          const upgradeDb = upgradeRequest.result;
+          if (!upgradeDb.objectStoreNames.contains(this.storeName)) {
+            upgradeDb.createObjectStore(this.storeName);
           }
         };
-        request.onsuccess = (): void => resolve(request.result);
-        request.onerror = (): void => reject(request.error ?? new Error('IndexedDB open failed.'));
-      });
-    }
+
+        upgradeRequest.onsuccess = (): void => resolve(upgradeRequest.result);
+        upgradeRequest.onerror = (): void => {
+          this.dbPromise = null;
+          reject(upgradeRequest.error ?? new Error('IndexedDB upgrade failed.'));
+        };
+        upgradeRequest.onblocked = (): void => {
+          console.warn('IndexedDB upgrade blocked. Please close other instances of this app.');
+        };
+      };
+
+      openRequest.onupgradeneeded = (): void => {
+        const db = openRequest.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
 
     return this.dbPromise;
   }
