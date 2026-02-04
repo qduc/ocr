@@ -133,8 +133,9 @@ export const buildRegions = (
   for (const token of sortedTokens) {
     const candidates = lines.filter(
       (line) =>
-        Math.abs(token.centerY - line.centerY) <= 0.6 * medianHeight &&
-        overlapRatio(token.bbox, line.bbox) >= 0.3
+        (Math.abs(token.centerY - line.centerY) <= 0.8 * medianHeight ||
+          overlapRatio(token.bbox, line.bbox) >= 0.5) &&
+        overlapRatio(token.bbox, line.bbox) >= 0.1
     );
     if (candidates.length === 0) {
       lines.push({
