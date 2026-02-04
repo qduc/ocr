@@ -17,6 +17,9 @@ import {
   TESSERACT_LANGUAGES,
   EASYOCR_LANGUAGES,
 } from '@/utils/language-config';
+import type { ITextTranslator } from '@/types/translation';
+import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
+import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
 
@@ -26,6 +29,7 @@ export interface AppOptions {
   imageProcessor?: ImageProcessor;
   engineFactory?: EngineFactory;
   ocrManager?: OCRManager;
+  createTranslator?: () => Promise<ITextTranslator>;
   registerEngines?: (
     factory: EngineFactory,
     setStage: (stage: Stage, message: string, progress?: number) => void
@@ -52,6 +56,15 @@ export interface AppInstance {
     imagePreviewContainer: HTMLDivElement;
     urlInput: HTMLInputElement;
     loadUrlButton: HTMLButtonElement;
+    translateSource: HTMLTextAreaElement;
+    translateResult: HTMLTextAreaElement;
+    translateFrom: HTMLSelectElement;
+    translateTo: HTMLSelectElement;
+    translateRunButton: HTMLButtonElement;
+    translateUseOcrButton: HTMLButtonElement;
+    translateCopyButton: HTMLButtonElement;
+    translateStatus: HTMLDivElement;
+    translateError: HTMLDivElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -154,6 +167,44 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             </div>
             <div id="output" class="output">Upload an image to begin.</div>
           </section>
+
+          <section class="panel translate-panel">
+            <div class="result-header translate-header">
+              <h2>3. Translate (Bergamot)</h2>
+              <div class="translate-actions">
+                <button id="translate-use-ocr" class="ghost-button" type="button">Use OCR output</button>
+                <button id="translate-run" class="primary-button" type="button">Translate</button>
+              </div>
+            </div>
+            <div class="translate-controls">
+              <div class="translate-select">
+                <label for="translate-from">From</label>
+                <select id="translate-from"></select>
+              </div>
+              <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
+              </button>
+              <div class="translate-select">
+                <label for="translate-to">To</label>
+                <select id="translate-to"></select>
+              </div>
+              <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+            <div class="translate-textareas">
+              <div class="translate-field">
+                <label for="translate-source" class="method-label">Source text</label>
+                <textarea id="translate-source" class="translate-textarea" rows="6" placeholder="Type or paste text to translate"></textarea>
+              </div>
+              <div class="translate-field">
+                <label for="translate-result" class="method-label">Translated text</label>
+                <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
+              </div>
+            </div>
+            <div id="translate-status" class="translate-status">Idle</div>
+            <div id="translate-error" class="translate-error hidden"></div>
+          </section>
         </div>
       </main>
 
@@ -217,6 +268,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
   const dropOverlay = root.querySelector<HTMLDivElement>('#drop-overlay');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
+  const translateSource = root.querySelector<HTMLTextAreaElement>('#translate-source');
+  const translateResult = root.querySelector<HTMLTextAreaElement>('#translate-result');
+  const translateFrom = root.querySelector<HTMLSelectElement>('#translate-from');
+  const translateTo = root.querySelector<HTMLSelectElement>('#translate-to');
+  const translateRunButton = root.querySelector<HTMLButtonElement>('#translate-run');
+  const translateUseOcrButton = root.querySelector<HTMLButtonElement>('#translate-use-ocr');
+  const translateCopyButton = root.querySelector<HTMLButtonElement>('#translate-copy');
+  const translateSwapButton = root.querySelector<HTMLButtonElement>('#translate-swap');
+  const translateStatus = root.querySelector<HTMLDivElement>('#translate-status');
+  const translateError = root.querySelector<HTMLDivElement>('#translate-error');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
   const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
 
@@ -250,6 +311,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !urlInput ||
     !loadUrlButton ||
     !dropOverlay ||
+    !translateSource ||
+    !translateResult ||
+    !translateFrom ||
+    !translateTo ||
+    !translateRunButton ||
+    !translateUseOcrButton ||
+    !translateCopyButton ||
+    !translateSwapButton ||
+    !translateStatus ||
+    !translateError ||
     methodTabs.length === 0 ||
     methodPanels.length === 0
   ) {
@@ -277,6 +348,26 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let lastResult: OCRResult | null = null;
   let lastProcessedWidth: number = 0;
   let lastProcessedHeight: number = 0;
+  let translatorInstance: ITextTranslator | null = null;
+  let translatorLoading: Promise<ITextTranslator> | null = null;
+  let translationBusy = false;
+  let userTouchedTranslateFrom = false;
+
+  const createTranslator =
+    options.createTranslator ??
+    (async (): Promise<ITextTranslator> => {
+      const { BergamotTextTranslator } = await import('@/translation/bergamot-translator');
+      return new BergamotTextTranslator();
+    });
+
+  const getTranslator = async (): Promise<ITextTranslator> => {
+    if (translatorInstance) return translatorInstance;
+    if (!translatorLoading) {
+      translatorLoading = createTranslator();
+    }
+    translatorInstance = await translatorLoading;
+    return translatorInstance;
+  };
 
   const setActiveMethod = (method: string): void => {
     methodTabs.forEach((tab): void => {
@@ -359,6 +450,30 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     errorSuggestion.textContent = '';
   };
 
+  const setTranslateStatus = (message: string): void => {
+    translateStatus.textContent = message;
+  };
+
+  const setTranslateError = (message?: string): void => {
+    if (message) {
+      translateError.textContent = message;
+      translateError.classList.remove('hidden');
+    } else {
+      translateError.textContent = '';
+      translateError.classList.add('hidden');
+    }
+  };
+
+  const setTranslateBusy = (busy: boolean): void => {
+    translationBusy = busy;
+    translateRunButton.disabled = busy;
+    translateUseOcrButton.disabled = busy;
+    translateCopyButton.disabled = busy;
+    translateSwapButton.disabled = busy;
+    translateFrom.disabled = busy;
+    translateTo.disabled = busy;
+  };
+
   const setBusy = (busy: boolean): void => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
@@ -403,6 +518,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const { EasyOCREngine } = await import('@/engines/easyocr-engine');
       return new EasyOCREngine({
         language: options?.language,
+        webgpu: webgpuAvailable,
+        debug: true,
+        debugMode: 'compare',
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading EasyOCR: ${status}`, percent);
@@ -461,6 +579,22 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
+  const getStoredTranslationLanguage = (key: 'from' | 'to'): string | null => {
+    try {
+      return localStorage.getItem(`translate.${key}`);
+    } catch {
+      return null;
+    }
+  };
+
+  const setStoredTranslationLanguage = (key: 'from' | 'to', value: string): void => {
+    try {
+      localStorage.setItem(`translate.${key}`, value);
+    } catch {
+      // Ignore storage failures in restricted contexts.
+    }
+  };
+
   const updateLanguageSelection = (engineId: string): void => {
     const options = getLanguageOptions(engineId);
     const shouldShow = Boolean(options);
@@ -486,6 +620,36 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     languageSelect.value = selected;
   };
 
+  const populateTranslateLanguages = (): void => {
+    const sorted = Object.entries(BERGAMOT_LANGUAGES).sort((a, b) => a[1].localeCompare(b[1]));
+    translateFrom.innerHTML = '';
+    translateTo.innerHTML = '';
+    for (const [code, label] of sorted) {
+      const fromOption = document.createElement('option');
+      fromOption.value = code;
+      fromOption.textContent = label;
+      translateFrom.append(fromOption);
+
+      const toOption = document.createElement('option');
+      toOption.value = code;
+      toOption.textContent = label;
+      translateTo.append(toOption);
+    }
+  };
+
+  const updateTranslateFromDefault = (): void => {
+    if (userTouchedTranslateFrom) return;
+    const engineId = activeEngineId ?? selectedEngineId;
+    const ocrLanguage =
+      engineId && supportsLanguageSelection(engineId) ? getSelectedLanguage(engineId) : 'eng';
+    const mapped = engineId ? mapOcrLanguageToBergamot(engineId, ocrLanguage) : null;
+    const next = mapped ?? DEFAULT_TRANSLATION_TO;
+    if (translateFrom.value !== next) {
+      translateFrom.value = next;
+    }
+    setStoredTranslationLanguage('from', translateFrom.value);
+  };
+
   const populateEngines = (): void => {
     const engines = engineFactory.getAvailableEngines();
     engineSelect.innerHTML = '';
@@ -503,6 +667,28 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       updateEngineDetails(selectedEngineId);
       updateLanguageSelection(selectedEngineId);
     }
+  };
+
+  const initTranslationControls = (): void => {
+    populateTranslateLanguages();
+    const storedFrom = getStoredTranslationLanguage('from');
+    if (storedFrom && BERGAMOT_LANGUAGES[storedFrom]) {
+      translateFrom.value = storedFrom;
+      userTouchedTranslateFrom = true;
+    } else {
+      updateTranslateFromDefault();
+    }
+
+    const storedTo = getStoredTranslationLanguage('to');
+    if (storedTo && BERGAMOT_LANGUAGES[storedTo]) {
+      translateTo.value = storedTo;
+    } else {
+      translateTo.value = DEFAULT_TRANSLATION_TO;
+      setStoredTranslationLanguage('to', translateTo.value);
+    }
+
+    setTranslateStatus('Ready to translate.');
+    setTranslateError();
   };
 
   const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
@@ -526,6 +712,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       engineReady = true;
       activeEngineId = engineId;
       activeLanguage = supportsLanguageSelection(engineId) ? language : null;
+      updateTranslateFromDefault();
       setStage('idle', `${engineName} ready`, 0);
     } catch (error) {
       logError(error);
@@ -548,6 +735,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       registerDefaultEngines();
     }
     populateEngines();
+    initTranslationControls();
     setStage('idle', 'Ready for upload', 0);
   }
 
@@ -686,6 +874,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     setStoredEngine(selectedEngineId);
     updateEngineDetails(selectedEngineId);
     updateLanguageSelection(selectedEngineId);
+    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
@@ -697,6 +886,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     selectedLanguages[selectedEngineId] = languageSelect.value;
     engineReady = false;
     activeLanguage = null;
+    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
@@ -821,6 +1011,98 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   });
 
+  const getOcrTextForTranslation = (): string => {
+    const text = lastResult?.text ?? output.textContent ?? '';
+    if (
+      !text ||
+      text === 'Upload an image to begin.' ||
+      text === 'No text detected in this image.' ||
+      text === 'Image loaded. Click extract to run OCR.'
+    ) {
+      return '';
+    }
+    return text;
+  };
+
+  translateFrom.addEventListener('change', (): void => {
+    userTouchedTranslateFrom = true;
+    setStoredTranslationLanguage('from', translateFrom.value);
+  });
+
+  translateTo.addEventListener('change', (): void => {
+    setStoredTranslationLanguage('to', translateTo.value);
+  });
+
+  translateSwapButton.addEventListener('click', (): void => {
+    const fromValue = translateFrom.value;
+    const toValue = translateTo.value;
+    translateFrom.value = toValue;
+    translateTo.value = fromValue;
+    userTouchedTranslateFrom = true;
+    setStoredTranslationLanguage('from', translateFrom.value);
+    setStoredTranslationLanguage('to', translateTo.value);
+  });
+
+  translateUseOcrButton.addEventListener('click', (): void => {
+    const text = getOcrTextForTranslation();
+    if (!text) {
+      setTranslateStatus('Run OCR or enter text to translate.');
+      return;
+    }
+    translateSource.value = text;
+    setTranslateStatus('OCR output copied into source.');
+  });
+
+  const runTranslation = async (): Promise<void> => {
+    if (translationBusy) return;
+    const sourceText = translateSource.value.trim();
+    if (!sourceText) {
+      setTranslateStatus('Enter text to translate.');
+      return;
+    }
+
+    setTranslateBusy(true);
+    setTranslateError();
+    try {
+      setTranslateStatus('Loading translator...');
+      const translator = await getTranslator();
+      setTranslateStatus('Translating...');
+      const response = await translator.translate({
+        from: translateFrom.value,
+        to: translateTo.value,
+        text: sourceText,
+      });
+      translateResult.value = response.text;
+      setTranslateStatus('Done.');
+    } catch (error) {
+      logError(error);
+      setTranslateError(error instanceof Error ? error.message : 'Translation failed.');
+      setTranslateStatus('Failed.');
+    } finally {
+      setTranslateBusy(false);
+    }
+  };
+
+  translateRunButton.addEventListener('click', (): void => {
+    void runTranslation();
+  });
+
+  translateCopyButton.addEventListener('click', (): void => {
+    const text = translateResult.value.trim();
+    if (!text) {
+      setTranslateStatus('No translation to copy.');
+      return;
+    }
+
+    void navigator.clipboard.writeText(text).then(() => {
+      const originalHtml = translateCopyButton.innerHTML;
+      translateCopyButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-strong)"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      setTimeout(() => {
+        translateCopyButton.innerHTML = originalHtml;
+      }, 2000);
+    });
+  });
+
   const renderOverlay = (
     overlay: HTMLDivElement,
     image: HTMLImageElement,
@@ -927,6 +1209,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer,
       urlInput,
       loadUrlButton,
+      translateSource,
+      translateResult,
+      translateFrom,
+      translateTo,
+      translateRunButton,
+      translateUseOcrButton,
+      translateCopyButton,
+      translateStatus,
+      translateError,
     },
     setStage,
   };

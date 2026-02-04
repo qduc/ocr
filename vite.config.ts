@@ -11,6 +11,10 @@ export default defineConfig({
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-*.{wasm,mjs}',
           dest: 'onnxruntime-web',
         },
+        {
+          src: 'node_modules/@browsermt/bergamot-translator/worker/**/*',
+          dest: 'bergamot/worker',
+        },
       ],
     }),
   ],
