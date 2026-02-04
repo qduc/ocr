@@ -168,44 +168,44 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             <div id="output" class="output">Upload an image to begin.</div>
           </section>
 
-          <section class="panel translate-panel">
-            <div class="result-header translate-header">
-              <h2>3. Translate (Bergamot)</h2>
-              <div class="translate-actions">
-                <button id="translate-use-ocr" class="ghost-button" type="button">Use OCR output</button>
-                <button id="translate-run" class="primary-button" type="button">Translate</button>
-              </div>
-            </div>
-            <div class="translate-controls">
-              <div class="translate-select">
-                <label for="translate-from">From</label>
-                <select id="translate-from"></select>
-              </div>
-              <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
-              </button>
-              <div class="translate-select">
-                <label for="translate-to">To</label>
-                <select id="translate-to"></select>
-              </div>
-              <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
-            </div>
-            <div class="translate-textareas">
-              <div class="translate-field">
-                <label for="translate-source" class="method-label">Source text</label>
-                <textarea id="translate-source" class="translate-textarea" rows="6" placeholder="Type or paste text to translate"></textarea>
-              </div>
-              <div class="translate-field">
-                <label for="translate-result" class="method-label">Translated text</label>
-                <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
-              </div>
-            </div>
-            <div id="translate-status" class="translate-status">Idle</div>
-            <div id="translate-error" class="translate-error hidden"></div>
-          </section>
         </div>
+        <section class="panel translate-panel">
+          <div class="result-header translate-header">
+            <h2>3. Translate (Bergamot)</h2>
+            <div class="translate-actions">
+              <button id="translate-use-ocr" class="ghost-button" type="button">Use OCR output</button>
+              <button id="translate-run" class="primary-button" type="button">Translate</button>
+            </div>
+          </div>
+          <div class="translate-controls">
+            <div class="translate-select">
+              <label for="translate-from">From</label>
+              <select id="translate-from"></select>
+            </div>
+            <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
+            </button>
+            <div class="translate-select">
+              <label for="translate-to">To</label>
+              <select id="translate-to"></select>
+            </div>
+            <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+          <div class="translate-textareas">
+            <div class="translate-field">
+              <label for="translate-source" class="method-label">Source text</label>
+              <textarea id="translate-source" class="translate-textarea" rows="6" placeholder="Type or paste text to translate"></textarea>
+            </div>
+            <div class="translate-field">
+              <label for="translate-result" class="method-label">Translated text</label>
+              <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
+            </div>
+          </div>
+          <div id="translate-status" class="translate-status">Idle</div>
+          <div id="translate-error" class="translate-error hidden"></div>
+        </section>
       </main>
 
       <section id="error-panel" class="panel error-panel hidden">
@@ -1076,7 +1076,19 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       setTranslateStatus('Done.');
     } catch (error) {
       logError(error);
-      setTranslateError(error instanceof Error ? error.message : 'Translation failed.');
+      const fallbackMessage = 'Translation failed.';
+      let message = fallbackMessage;
+      if (error instanceof Error && error.message) {
+        if (error.message.includes('No model available to translate')) {
+          const fromLabel =
+            translateFrom.selectedOptions[0]?.textContent?.trim() ?? translateFrom.value;
+          const toLabel = translateTo.selectedOptions[0]?.textContent?.trim() ?? translateTo.value;
+          message = `No translation model available for ${fromLabel} → ${toLabel}.`;
+        } else {
+          message = error.message;
+        }
+      }
+      setTranslateError(message);
       setTranslateStatus('Failed.');
     } finally {
       setTranslateBusy(false);
