@@ -20,6 +20,7 @@
  */
 
 import type * as ort from 'onnxruntime-web';
+import type { OCRItem, OCRQuad, OCRStyle } from '@/types/ocr-engine';
 
 // ============================================================================
 // Core Types - Re-exported from esearch-ocr
@@ -411,24 +412,16 @@ export function extractTextFromESearchOutput(output: ESearchOCROutput): string {
  * Convert eSearch result items to our standard OCR result format.
  * This helper maps eSearch's output to our unified OCRResult type.
  */
-export function mapESearchResultToStandard(items: ESearchResultType): Array<{
-  text: string;
-  confidence: number;
-  boundingBox: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-}> {
-  return items.map(item => {
-    // Calculate bounding box from the four corner points
-    const xs = item.box.map(p => p[0]);
-    const ys = item.box.map(p => p[1]);
+export function mapESearchResultToStandard(items: ESearchResultType): OCRItem[] {
+  return items.map((item) => {
+    const xs = item.box.map((point) => point[0]);
+    const ys = item.box.map((point) => point[1]);
     const minX = Math.min(...xs);
     const minY = Math.min(...ys);
     const maxX = Math.max(...xs);
     const maxY = Math.max(...ys);
+    const quad: OCRQuad = item.box.map(([x, y]) => ({ x, y })) as OCRQuad;
+    const style: OCRStyle = { bg: item.style.bg, text: item.style.text };
 
     return {
       text: item.text,
@@ -439,6 +432,8 @@ export function mapESearchResultToStandard(items: ESearchResultType): Array<{
         width: maxX - minX,
         height: maxY - minY,
       },
+      quad,
+      style,
     };
   });
 }

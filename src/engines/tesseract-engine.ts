@@ -1,5 +1,5 @@
 import { createWorker, type Worker } from 'tesseract.js';
-import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
+import type { IOCREngine, OCRQuad, OCRResult } from '@/types/ocr-engine';
 import { normalizeTesseractLanguage } from '@/utils/language-config';
 
 export type TesseractProgressCallback = (status: string, progress: number) => void;
@@ -65,6 +65,12 @@ export class TesseractEngine implements IOCREngine {
           width: word.bbox.x1 - word.bbox.x0,
           height: word.bbox.y1 - word.bbox.y0,
         },
+        quad: [
+          { x: word.bbox.x0, y: word.bbox.y0 },
+          { x: word.bbox.x1, y: word.bbox.y0 },
+          { x: word.bbox.x1, y: word.bbox.y1 },
+          { x: word.bbox.x0, y: word.bbox.y1 },
+        ] as OCRQuad,
       })),
     };
   }

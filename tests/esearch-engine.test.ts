@@ -673,7 +673,7 @@ describe('mapESearchResultToStandard utility', () => {
     const result = mapESearchResultToStandard(items);
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
+    expect(result[0]).toMatchObject({
       text: 'Test',
       confidence: 0.95,
       boundingBox: {
@@ -682,6 +682,13 @@ describe('mapESearchResultToStandard utility', () => {
         width: 100,
         height: 20,
       },
+      quad: [
+        { x: 10, y: 20 },
+        { x: 110, y: 20 },
+        { x: 110, y: 40 },
+        { x: 10, y: 40 },
+      ],
+      style: { bg: [255, 255, 255], text: [0, 0, 0] },
     });
   });
 

@@ -1,3 +1,13 @@
+# Translate Image
+
+## MVP in this repo
+
+- **Inpaint**: Pure TypeScript fill-based background plate (no OpenCV.js dependency yet).
+- **Output**: Render at **original resolution** with ROI-only processing for performance.
+- **Translation**: One translation per **paragraph region** (grouped from OCR boxes).
+- **Geometry**: Homography warp support is implemented, but regions default to rectangular quads.
+- **Blend**: Multiply/screen-style blending with texture modulation and subtle noise.
+
 ## Pipeline
 
 ### 1) Create a clean “background plate” (remove original text)

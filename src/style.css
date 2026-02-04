@@ -253,6 +253,27 @@ p {
   color: var(--warning);
   font-weight: 600;
 }
+
+.translate-image-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.translate-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.translate-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
 .panel {
   background: var(--card);
   border-radius: var(--radius-md);

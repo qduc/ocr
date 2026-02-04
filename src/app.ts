@@ -20,8 +20,17 @@ import {
 import type { ITextTranslator } from '@/types/translation';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
+import type {
+  TranslateImageInput,
+  TranslateImageOptions,
+  TranslateImageOutput,
+} from '@/translate-image/types';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
+type TranslateImageImpl = (
+  input: TranslateImageInput,
+  options?: TranslateImageOptions
+) => Promise<TranslateImageOutput>;
 
 export interface AppOptions {
   root?: HTMLElement | null;
@@ -30,6 +39,7 @@ export interface AppOptions {
   engineFactory?: EngineFactory;
   ocrManager?: OCRManager;
   createTranslator?: () => Promise<ITextTranslator>;
+  translateImageImpl?: TranslateImageImpl;
   registerEngines?: (
     factory: EngineFactory,
     setStage: (stage: Stage, message: string, progress?: number) => void
@@ -63,6 +73,11 @@ export interface AppInstance {
     translateCopyButton: HTMLButtonElement;
     translateStatus: HTMLDivElement;
     translateError: HTMLDivElement;
+    translateImageRunButton: HTMLButtonElement;
+    translateImageDownloadButton: HTMLButtonElement;
+    translateImageToggle: HTMLInputElement;
+    translateImageStatus: HTMLDivElement;
+    translateImageError: HTMLDivElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -169,7 +184,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             <div class="translate-section">
               <div class="result-header translate-header">
                 <h3>Translate</h3>
-                <button id="translate-run" class="primary-button" type="button">Translate</button>
+                <div class="translate-actions">
+                  <button id="translate-run" class="primary-button" type="button">Translate</button>
+                  <button id="translate-image-run" class="primary-button" type="button">
+                    Translate on image
+                  </button>
+                  <button id="translate-image-download" class="ghost-button" type="button" disabled>
+                    Download
+                  </button>
+                </div>
               </div>
               <div class="translate-controls">
                 <div class="translate-select">
@@ -193,6 +216,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
               </div>
               <div id="translate-status" class="translate-status">Idle</div>
               <div id="translate-error" class="translate-error hidden"></div>
+              <div class="translate-image-controls">
+                <label class="translate-toggle">
+                  <input id="translate-image-toggle" type="checkbox" />
+                  <span>Show translated image</span>
+                </label>
+                <div id="translate-image-status" class="translate-status">
+                  Ready to translate image.
+                </div>
+              </div>
+              <div id="translate-image-error" class="translate-error hidden"></div>
             </div>
           </section>
         </div>
@@ -268,6 +301,13 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const translateSwapButton = root.querySelector<HTMLButtonElement>('#translate-swap');
   const translateStatus = root.querySelector<HTMLDivElement>('#translate-status');
   const translateError = root.querySelector<HTMLDivElement>('#translate-error');
+  const translateImageRunButton = root.querySelector<HTMLButtonElement>('#translate-image-run');
+  const translateImageDownloadButton = root.querySelector<HTMLButtonElement>(
+    '#translate-image-download'
+  );
+  const translateImageToggle = root.querySelector<HTMLInputElement>('#translate-image-toggle');
+  const translateImageStatus = root.querySelector<HTMLDivElement>('#translate-image-status');
+  const translateImageError = root.querySelector<HTMLDivElement>('#translate-image-error');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
   const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
 
@@ -310,6 +350,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !translateSwapButton ||
     !translateStatus ||
     !translateError ||
+    !translateImageRunButton ||
+    !translateImageDownloadButton ||
+    !translateImageToggle ||
+    !translateImageStatus ||
+    !translateImageError ||
     methodTabs.length === 0 ||
     methodPanels.length === 0
   ) {
@@ -340,6 +385,12 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let translatorInstance: ITextTranslator | null = null;
   let translatorLoading: Promise<ITextTranslator> | null = null;
   let translationBusy = false;
+  let translateImageBusy = false;
+  let translatedPreviewUrl: string | null = null;
+  let originalPreviewSrc: string | null = null;
+  let lastOriginalImageData: ImageData | null = null;
+  let lastOcrSize: { width: number; height: number } | null = null;
+  let sourceFilename: string | null = null;
 
 
   const createTranslator =
@@ -347,6 +398,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     (async (): Promise<ITextTranslator> => {
       const { BergamotTextTranslator } = await import('@/translation/bergamot-translator');
       return new BergamotTextTranslator();
+    });
+  const translateImageImpl: TranslateImageImpl =
+    options.translateImageImpl ??
+    (async (
+      input: TranslateImageInput,
+      translateOptions?: TranslateImageOptions
+    ): Promise<TranslateImageOutput> => {
+      const { translateImage } = await import('@/translate-image');
+      return translateImage(input, translateOptions);
     });
 
   const getTranslator = async (): Promise<ITextTranslator> => {
@@ -478,6 +538,20 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
+  const setTranslateImageStatus = (message: string): void => {
+    translateImageStatus.textContent = message;
+  };
+
+  const setTranslateImageError = (message?: string): void => {
+    if (message) {
+      translateImageError.textContent = message;
+      translateImageError.classList.remove('hidden');
+    } else {
+      translateImageError.textContent = '';
+      translateImageError.classList.add('hidden');
+    }
+  };
+
   const setTranslateBusy = (busy: boolean): void => {
     translationBusy = busy;
     translateRunButton.disabled = busy;
@@ -487,12 +561,45 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     translateTo.disabled = busy;
   };
 
+  const setTranslateImageBusy = (busy: boolean): void => {
+    translateImageBusy = busy;
+    translateImageRunButton.disabled = busy;
+    translateImageDownloadButton.disabled = busy || !translatedPreviewUrl;
+    translateImageToggle.disabled = busy || !translatedPreviewUrl;
+  };
+
   const setBusy = (busy: boolean): void => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
     engineSelect.disabled = busy;
     languageSelect.disabled = busy;
     runButton.textContent = busy ? 'Working…' : 'Extract text';
+  };
+
+  const resetTranslateImageState = (): void => {
+    if (translatedPreviewUrl) {
+      URL.revokeObjectURL(translatedPreviewUrl);
+      translatedPreviewUrl = null;
+    }
+    translateImageToggle.checked = false;
+    translateImageToggle.disabled = true;
+    translateImageDownloadButton.disabled = true;
+    translateImageRunButton.disabled = true;
+    setTranslateImageStatus('Ready to translate image.');
+    setTranslateImageError();
+  };
+
+  const canTranslateImage = (): boolean => {
+    if (!lastResult?.items || lastResult.items.length === 0) return false;
+    if (!lastOriginalImageData || !lastOcrSize) return false;
+    if (!selectedEngineId || selectedEngineId === 'transformers') return false;
+    return true;
+  };
+
+  const updateTranslateImageAvailability = (): void => {
+    translateImageRunButton.disabled = translateImageBusy || !canTranslateImage();
+    translateImageDownloadButton.disabled = translateImageBusy || !translatedPreviewUrl;
+    translateImageToggle.disabled = translateImageBusy || !translatedPreviewUrl;
   };
 
   const registerDefaultEngines = (): void => {
@@ -707,6 +814,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
     setTranslateStatus('Ready to translate.');
     setTranslateError();
+    resetTranslateImageState();
   };
 
   const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
@@ -731,6 +839,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       activeEngineId = engineId;
       activeLanguage = supportsLanguageSelection(engineId) ? language : null;
       updateTranslateFromDefault();
+      updateTranslateImageAvailability();
       setStage('idle', `${engineName} ready`, 0);
     } catch (error) {
       logError(error);
@@ -764,13 +873,20 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
 
     selectedSource = source;
+    lastOriginalImageData = null;
+    lastOcrSize = null;
+    lastResult = null;
+    resetTranslateImageState();
 
     if (source instanceof File) {
       fileMeta.textContent = `${source.name} (${Math.round(source.size / 1024)} KB)`;
+      sourceFilename = source.name;
     } else if (source instanceof Blob) {
       fileMeta.textContent = `Pasted image (${Math.round(source.size / 1024)} KB)`;
+      sourceFilename = null;
     } else {
       fileMeta.textContent = `URL: ${source.substring(0, 30)}${source.length > 30 ? '...' : ''}`;
+      sourceFilename = null;
     }
 
     output.textContent = 'Image loaded. Click extract to run OCR.';
@@ -783,14 +899,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreview.crossOrigin = 'anonymous';
       imagePreview.src = source;
     }
+    originalPreviewSrc = imagePreview.src;
 
     imagePreviewContainer.classList.remove('hidden');
     ocrOverlay.innerHTML = '';
-    lastResult = null;
     copyOutputButton.classList.add('hidden');
     translateResult.value = '';
     setTranslateError();
     setTranslateStatus('Ready to translate OCR output.');
+    updateTranslateImageAvailability();
   };
 
   imagePreview.addEventListener('error', (): void => {
@@ -798,6 +915,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       setError(createInvalidImageError('Failed to load image. Check the URL or file format.'));
       imagePreviewContainer.classList.add('hidden');
       selectedSource = null;
+      originalPreviewSrc = null;
+      resetTranslateImageState();
     }
   });
 
@@ -811,6 +930,12 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       selectedSource = null;
       fileMeta.textContent = 'No file selected.';
       output.textContent = 'Upload an image to begin.';
+      originalPreviewSrc = null;
+      sourceFilename = null;
+      lastResult = null;
+      lastOriginalImageData = null;
+      lastOcrSize = null;
+      resetTranslateImageState();
     }
   });
 
@@ -896,6 +1021,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     updateEngineDetails(selectedEngineId);
     updateLanguageSelection(selectedEngineId);
     updateTranslateFromDefault();
+    updateTranslateImageAvailability();
     void switchEngine(selectedEngineId);
   });
 
@@ -909,6 +1035,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     activeLanguage = null;
     updateLanguageHint(selectedEngineId);
     updateTranslateFromDefault();
+    updateTranslateImageAvailability();
     void switchEngine(selectedEngineId);
   });
 
@@ -924,6 +1051,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
 
     setBusy(true);
+    resetTranslateImageState();
     try {
       if (!selectedEngineId) {
         setError(createProcessingFailedError('No OCR engine selected.'));
@@ -942,6 +1070,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
       setStage('processing', 'Processing image...', 100);
       const imageData = await imageProcessor.sourceToImageData(selectedSource);
+      lastOriginalImageData = imageData;
       const resized = imageProcessor.resize(imageData, 2000);
       const processed =
         selectedEngineId === 'transformers' ? resized : imageProcessor.preprocess(resized);
@@ -951,6 +1080,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       lastResult = result;
       lastProcessedWidth = processed.width;
       lastProcessedHeight = processed.height;
+      lastOcrSize = { width: processed.width, height: processed.height };
 
       output.textContent =
         result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
@@ -958,6 +1088,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translateResult.value = '';
       setTranslateError();
       setTranslateStatus('OCR updated. Click Translate to translate it.');
+      setTranslateImageStatus('Ready to translate image.');
+      updateTranslateImageAvailability();
       if (result.items && result.items.length > 0) {
         drawBoxes(result.items, processed.width, processed.height);
       } else {
@@ -1051,12 +1183,16 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   translateFrom.addEventListener('change', (): void => {
     setStoredTranslationLanguage('from', translateFrom.value);
+    setTranslateImageStatus('Ready to translate image.');
+    setTranslateImageError();
   });
 
 
 
   translateTo.addEventListener('change', (): void => {
     setStoredTranslationLanguage('to', translateTo.value);
+    setTranslateImageStatus('Ready to translate image.');
+    setTranslateImageError();
   });
 
   translateSwapButton.addEventListener('click', (): void => {
@@ -1066,6 +1202,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     translateTo.value = fromValue;
     setStoredTranslationLanguage('from', translateFrom.value);
     setStoredTranslationLanguage('to', translateTo.value);
+    setTranslateImageStatus('Ready to translate image.');
+    setTranslateImageError();
   });
 
 
@@ -1112,8 +1250,96 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
+  const runTranslateImage = async (): Promise<void> => {
+    if (translateImageBusy) return;
+    if (!canTranslateImage()) {
+      setTranslateImageStatus('Run OCR with a supported engine to translate image.');
+      return;
+    }
+    if (!lastResult?.items || !lastOriginalImageData || !lastOcrSize || !selectedEngineId) {
+      setTranslateImageStatus('Run OCR before translating the image.');
+      return;
+    }
+
+    setTranslateImageBusy(true);
+    setTranslateImageError();
+    try {
+      setTranslateImageStatus('Loading translator...');
+      const translator = await getTranslator();
+      setTranslateImageStatus('Translating image...');
+      const response = await translateImageImpl({
+        original: lastOriginalImageData,
+        ocrItems: lastResult.items,
+        engineId: selectedEngineId,
+        from: translateFrom.value,
+        to: translateTo.value,
+        translator,
+        ocrSize: lastOcrSize,
+      });
+
+      if (translatedPreviewUrl) {
+        URL.revokeObjectURL(translatedPreviewUrl);
+      }
+      translatedPreviewUrl = URL.createObjectURL(response.blob);
+      translateImageDownloadButton.disabled = false;
+      translateImageToggle.disabled = false;
+      setTranslateImageStatus('Image translated.');
+
+      if (translateImageToggle.checked) {
+        imagePreview.removeAttribute('crossorigin');
+        imagePreview.src = translatedPreviewUrl;
+      }
+    } catch (error) {
+      logError(error);
+      const message = error instanceof Error ? error.message : 'Translate image failed.';
+      setTranslateImageError(message);
+      setTranslateImageStatus('Failed.');
+    } finally {
+      setTranslateImageBusy(false);
+      updateTranslateImageAvailability();
+    }
+  };
+
   translateRunButton.addEventListener('click', (): void => {
     void runTranslation();
+  });
+
+  translateImageRunButton.addEventListener('click', (): void => {
+    void runTranslateImage();
+  });
+
+  translateImageDownloadButton.addEventListener('click', (): void => {
+    if (!translatedPreviewUrl) {
+      setTranslateImageStatus('No translated image to download.');
+      return;
+    }
+    const baseName = sourceFilename ? sourceFilename.replace(/\.[^.]+$/, '') : 'translated-image';
+    const link = document.createElement('a');
+    link.href = translatedPreviewUrl;
+    link.download = `${baseName}-translated.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  });
+
+  translateImageToggle.addEventListener('change', (): void => {
+    if (translateImageToggle.checked && translatedPreviewUrl) {
+      imagePreview.removeAttribute('crossorigin');
+      imagePreview.src = translatedPreviewUrl;
+    } else if (originalPreviewSrc) {
+      if (typeof selectedSource === 'string') {
+        imagePreview.crossOrigin = 'anonymous';
+      } else {
+        imagePreview.removeAttribute('crossorigin');
+      }
+      imagePreview.src = originalPreviewSrc;
+    }
+    if (imageModal && !imageModal.classList.contains('hidden')) {
+      modalImage.src = imagePreview.src;
+    }
+    if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
+      drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+    }
   });
 
   translateCopyButton.addEventListener('click', (): void => {
@@ -1245,6 +1471,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translateCopyButton,
       translateStatus,
       translateError,
+      translateImageRunButton,
+      translateImageDownloadButton,
+      translateImageToggle,
+      translateImageStatus,
+      translateImageError,
     },
     setStage,
   };

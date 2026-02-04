@@ -1,3 +1,15 @@
+export interface OCRPoint {
+  x: number;
+  y: number;
+}
+
+export type OCRQuad = [OCRPoint, OCRPoint, OCRPoint, OCRPoint];
+
+export interface OCRStyle {
+  bg?: [number, number, number];
+  text?: [number, number, number];
+}
+
 export interface OCRItem {
   text: string;
   confidence: number;
@@ -7,6 +19,8 @@ export interface OCRItem {
     width: number;
     height: number;
   };
+  quad?: OCRQuad;
+  style?: OCRStyle;
 }
 
 export interface OCRResult {

@@ -1,4 +1,4 @@
-import type { IOCREngine, OCRResult } from '@/types/ocr-engine';
+import type { IOCREngine, OCRQuad, OCRResult } from '@/types/ocr-engine';
 import * as ort from 'onnxruntime-web';
 import type {
   DetectorModel,
@@ -179,6 +179,7 @@ const mapEasyOcrResultItem = (item: EasyOcrResult): NonNullable<OCRResult['items
   const minY = Math.min(...ys);
   const maxX = Math.max(...xs);
   const maxY = Math.max(...ys);
+  const quad: OCRQuad = item.box.map(([x, y]) => ({ x, y })) as OCRQuad;
   return {
     text: item.text,
     confidence: item.confidence,
@@ -188,5 +189,6 @@ const mapEasyOcrResultItem = (item: EasyOcrResult): NonNullable<OCRResult['items
       width: maxX - minX,
       height: maxY - minY,
     },
+    quad,
   };
 };
