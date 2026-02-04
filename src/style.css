@@ -432,6 +432,12 @@ p {
   color: var(--ink-2);
 }
 
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+
 .primary-button,
 .ghost-button {
   border: none;

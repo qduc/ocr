@@ -96,6 +96,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           <div id="language-select-container" class="engine-select hidden">
             <label for="language-select">Language</label>
             <select id="language-select"></select>
+            <div id="language-hint" class="field-hint"></div>
           </div>
 
           <div class="input-methods">
@@ -241,6 +242,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const engineDetails = root.querySelector<HTMLDivElement>('#engine-details');
   const languageSelect = root.querySelector<HTMLSelectElement>('#language-select');
   const languageSelectContainer = root.querySelector<HTMLDivElement>('#language-select-container');
+  const languageHint = root.querySelector<HTMLDivElement>('#language-hint');
   const runButton = root.querySelector<HTMLButtonElement>('#run-button');
   const output = root.querySelector<HTMLDivElement>('#output');
   const errorPanel = root.querySelector<HTMLDivElement>('#error-panel');
@@ -282,6 +284,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !engineDetails ||
     !languageSelect ||
     !languageSelectContainer ||
+    !languageHint ||
     !runButton ||
     !output ||
     !errorPanel ||
@@ -383,6 +386,31 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   const getLanguageOptions = (engineId: string): Record<string, string> | null =>
     languageOptionsByEngine[engineId] ?? null;
+
+  const ESEARCH_LANGUAGE_HINTS: Record<string, string> = {
+    english: 'English-only model. Use this if the document is primarily English.',
+    latin:
+      'Latin script group (English, French, German, Spanish, Italian, Portuguese, and many more).',
+    chinese: 'Chinese + Japanese model. Works for Japanese too.',
+    eslav: 'Cyrillic group: Russian, Ukrainian, Bulgarian, Belarusian.',
+    hindi: 'Devanagari group: Hindi, Marathi, Nepali, Sanskrit.',
+    arabic: 'Arabic script group: Arabic, Urdu, Persian/Farsi.',
+  };
+
+  const updateLanguageHint = (engineId: string): void => {
+    if (!supportsLanguageSelection(engineId)) {
+      languageHint.textContent = '';
+      languageHint.classList.add('hidden');
+      return;
+    }
+
+    const selected = getSelectedLanguage(engineId);
+    const message =
+      engineId === 'esearch' ? (ESEARCH_LANGUAGE_HINTS[selected] ?? '') : '';
+
+    languageHint.textContent = message;
+    languageHint.classList.toggle('hidden', message.trim().length === 0);
+  };
 
   const getSelectedLanguage = (engineId: string): string => {
     const options = getLanguageOptions(engineId);
@@ -587,6 +615,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
     if (!options) {
       languageSelect.innerHTML = '';
+      updateLanguageHint(engineId);
       return;
     }
 
@@ -603,6 +632,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     const selected = getSelectedLanguage(engineId);
     selectedLanguages[engineId] = selected;
     languageSelect.value = selected;
+    updateLanguageHint(engineId);
   };
 
   const populateTranslateLanguages = (): void => {
@@ -877,6 +907,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     selectedLanguages[selectedEngineId] = languageSelect.value;
     engineReady = false;
     activeLanguage = null;
+    updateLanguageHint(selectedEngineId);
     updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });

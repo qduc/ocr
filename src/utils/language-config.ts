@@ -5,17 +5,17 @@ import { getSupportedLanguages } from '@qduc/easyocr-core';
  * Each entry maps a display name to the subfolder name in HF.
  */
 export const SUPPORTED_LANGUAGES: Record<string, string> = {
-  english: 'English',
-  chinese: 'Chinese (Simplified)',
-  arabic: 'Arabic',
+  english: 'English (English-only)',
+  latin: 'Latin script (many languages)',
+  chinese: 'Chinese/Japanese (CJK)',
+  eslav: 'Cyrillic (ru/uk/bg/be)',
   korean: 'Korean',
-  latin: 'Latin/General',
+  greek: 'Greek',
+  thai: 'Thai',
+  hindi: 'Devanagari (hi/mr/ne/sa)',
+  arabic: 'Arabic script (ar/ur/fa)',
   tamil: 'Tamil',
   telugu: 'Telugu',
-  thai: 'Thai',
-  eslav: 'Eslav',
-  greek: 'Greek',
-  hindi: 'Hindi',
 };
 
 /**
