@@ -159,7 +159,10 @@ export class BergamotTextTranslator implements ITextTranslator {
               }
             );
 
-            worker.addEventListener('error', onError);
+            worker.addEventListener('error', (ev) => {
+              onError(new Error(ev.message || 'Unknown worker error'));
+            });
+
             await call('initialize', options);
 
             return {

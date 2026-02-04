@@ -115,3 +115,29 @@ export function mapOcrLanguageToBergamot(engineId: string, ocrLanguage: string):
 
   return ensureSupported(normalized);
 }
+
+export function mapBergamotToOcrLanguage(bergamotLanguage: string, engineId: string): string | null {
+  if (engineId === 'tesseract') {
+    // Find the first Tesseract key that maps to this Bergamot code
+    const entry = Object.entries(tesseractMap).find(([, target]) => target === bergamotLanguage);
+    if (entry) return entry[0];
+
+    // Fallback: If no direct map, Tesseract uses 3-letter codes.
+    // This is a rough heuristic.
+    return null;
+  }
+
+  if (engineId === 'easyocr') {
+    const entry = Object.entries(easyOcrMap).find(([, target]) => target === bergamotLanguage);
+    if (entry) return entry[0];
+    return bergamotLanguage; // EasyOCR often uses 2-letter codes anyway
+  }
+
+  if (engineId === 'esearch') {
+    const entry = Object.entries(esearchMap).find(([, target]) => target === bergamotLanguage);
+    return entry ? entry[0] : null;
+  }
+
+  return bergamotLanguage;
+}
+

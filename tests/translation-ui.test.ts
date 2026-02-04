@@ -84,7 +84,7 @@ const flushPromises = async (): Promise<void> => {
 };
 
 describe('Translation UI', () => {
-  it('translates source text and updates result', async () => {
+  it('translates OCR output and updates result', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
@@ -106,11 +106,10 @@ describe('Translation UI', () => {
       createTranslator: () => Promise.resolve(translator),
     });
 
-    const source = root.querySelector<HTMLTextAreaElement>('#translate-source')!;
     const runButton = root.querySelector<HTMLButtonElement>('#translate-run')!;
     const result = root.querySelector<HTMLTextAreaElement>('#translate-result')!;
 
-    source.value = 'Hello world';
+    app.elements.output.textContent = 'Hello world';
     runButton.click();
 
     await flushPromises();
@@ -123,12 +122,15 @@ describe('Translation UI', () => {
     void app;
   });
 
-  it('copies OCR output into translation source', async () => {
+  it('translates OCR output after OCR completes', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
     if (!root) throw new Error('Missing root');
 
     const imageProcessor = createImageProcessorStub();
+    const translateSpy = vi.fn((request: { text: string; from: string; to: string }) =>
+      Promise.resolve({ text: `${request.text}|${request.from}|${request.to}` })
+    );
     const ocrManager = {
       setEngine: vi.fn((): Promise<void> => Promise.resolve()),
       run: vi.fn((): Promise<OCRResult> => Promise.resolve({ text: 'Detected text' })),
@@ -140,18 +142,24 @@ describe('Translation UI', () => {
       imageProcessor,
       ocrManager,
       registerEngines: (factory) => registerTestEngine(factory),
-      createTranslator: () => Promise.resolve({ translate: vi.fn(), destroy: vi.fn() }),
+      createTranslator: () =>
+        Promise.resolve({ translate: translateSpy, destroy: vi.fn() } as ITextTranslator),
     });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
     attachFile(app.elements.fileInput, file);
     await app.runOcr();
 
-    const source = root.querySelector<HTMLTextAreaElement>('#translate-source')!;
-    const useOcr = root.querySelector<HTMLButtonElement>('#translate-use-ocr')!;
-    useOcr.click();
+    const runButton = root.querySelector<HTMLButtonElement>('#translate-run')!;
+    const result = root.querySelector<HTMLTextAreaElement>('#translate-result')!;
+    runButton.click();
 
-    expect(source.value).toBe('Detected text');
+    await flushPromises();
+
+    expect(translateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Detected text', from: 'en', to: 'en' })
+    );
+    expect(result.value).toBe('Detected text|en|en');
   });
 
   it('shows error when translation fails', async () => {
@@ -165,7 +173,7 @@ describe('Translation UI', () => {
       destroy: vi.fn(),
     };
 
-    initApp({
+    const app = initApp({
       root,
       featureDetector: createSupportedDetector(),
       imageProcessor: createImageProcessorStub(),
@@ -174,11 +182,10 @@ describe('Translation UI', () => {
       createTranslator: () => Promise.resolve(translator),
     });
 
-    const source = root.querySelector<HTMLTextAreaElement>('#translate-source')!;
     const runButton = root.querySelector<HTMLButtonElement>('#translate-run')!;
     const error = root.querySelector<HTMLDivElement>('#translate-error')!;
 
-    source.value = 'Hola';
+    app.elements.output.textContent = 'Hola';
     runButton.click();
 
     await flushPromises();

@@ -165,8 +165,8 @@ p {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 0;
-  min-height: 100%;
+  height: auto;
+  min-height: 0;
 }
 
 .result-panel {
@@ -176,11 +176,13 @@ p {
   min-height: 0;
 }
 
-.translate-panel {
+.translate-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  grid-column: 1 / -1;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(26, 26, 26, 0.08);
 }
 
 .translate-header {
@@ -221,11 +223,6 @@ p {
   font-family: inherit;
 }
 
-.translate-textareas {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
 
 .translate-textarea {
   width: 100%;
@@ -734,9 +731,6 @@ p {
     max-height: 500px;
   }
 
-  .translate-textareas {
-    grid-template-columns: 1fr;
-  }
   #app {
     padding: 32px 16px 48px;
   }

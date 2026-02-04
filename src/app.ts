@@ -56,12 +56,10 @@ export interface AppInstance {
     imagePreviewContainer: HTMLDivElement;
     urlInput: HTMLInputElement;
     loadUrlButton: HTMLButtonElement;
-    translateSource: HTMLTextAreaElement;
     translateResult: HTMLTextAreaElement;
     translateFrom: HTMLSelectElement;
     translateTo: HTMLSelectElement;
     translateRunButton: HTMLButtonElement;
-    translateUseOcrButton: HTMLButtonElement;
     translateCopyButton: HTMLButtonElement;
     translateStatus: HTMLDivElement;
     translateError: HTMLDivElement;
@@ -158,7 +156,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
             </div>
           </section>
 
-          <section class="panel result-panel">
+        <section class="panel result-panel">
             <div class="result-header">
               <h2>2. OCR output</h2>
               <button id="copy-output-button" class="icon-button hidden" title="Copy all text">
@@ -166,46 +164,38 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
               </button>
             </div>
             <div id="output" class="output">Upload an image to begin.</div>
-          </section>
 
+            <div class="translate-section">
+              <div class="result-header translate-header">
+                <h3>Translate</h3>
+                <button id="translate-run" class="primary-button" type="button">Translate</button>
+              </div>
+              <div class="translate-controls">
+                <div class="translate-select">
+                  <label for="translate-from">From</label>
+                  <select id="translate-from"></select>
+                </div>
+                <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
+                </button>
+                <div class="translate-select">
+                  <label for="translate-to">To</label>
+                  <select id="translate-to"></select>
+                </div>
+                <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+              <div class="translate-field">
+                <label for="translate-result" class="method-label">Translated text</label>
+                <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
+              </div>
+              <div id="translate-status" class="translate-status">Idle</div>
+              <div id="translate-error" class="translate-error hidden"></div>
+            </div>
+          </section>
         </div>
-        <section class="panel translate-panel">
-          <div class="result-header translate-header">
-            <h2>3. Translate (Bergamot)</h2>
-            <div class="translate-actions">
-              <button id="translate-use-ocr" class="ghost-button" type="button">Use OCR output</button>
-              <button id="translate-run" class="primary-button" type="button">Translate</button>
-            </div>
-          </div>
-          <div class="translate-controls">
-            <div class="translate-select">
-              <label for="translate-from">From</label>
-              <select id="translate-from"></select>
-            </div>
-            <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
-            </button>
-            <div class="translate-select">
-              <label for="translate-to">To</label>
-              <select id="translate-to"></select>
-            </div>
-            <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            </button>
-          </div>
-          <div class="translate-textareas">
-            <div class="translate-field">
-              <label for="translate-source" class="method-label">Source text</label>
-              <textarea id="translate-source" class="translate-textarea" rows="6" placeholder="Type or paste text to translate"></textarea>
-            </div>
-            <div class="translate-field">
-              <label for="translate-result" class="method-label">Translated text</label>
-              <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
-            </div>
-          </div>
-          <div id="translate-status" class="translate-status">Idle</div>
-          <div id="translate-error" class="translate-error hidden"></div>
-        </section>
+        </div>
       </main>
 
       <section id="error-panel" class="panel error-panel hidden">
@@ -268,12 +258,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
   const dropOverlay = root.querySelector<HTMLDivElement>('#drop-overlay');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
-  const translateSource = root.querySelector<HTMLTextAreaElement>('#translate-source');
   const translateResult = root.querySelector<HTMLTextAreaElement>('#translate-result');
   const translateFrom = root.querySelector<HTMLSelectElement>('#translate-from');
   const translateTo = root.querySelector<HTMLSelectElement>('#translate-to');
   const translateRunButton = root.querySelector<HTMLButtonElement>('#translate-run');
-  const translateUseOcrButton = root.querySelector<HTMLButtonElement>('#translate-use-ocr');
   const translateCopyButton = root.querySelector<HTMLButtonElement>('#translate-copy');
   const translateSwapButton = root.querySelector<HTMLButtonElement>('#translate-swap');
   const translateStatus = root.querySelector<HTMLDivElement>('#translate-status');
@@ -311,12 +299,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !urlInput ||
     !loadUrlButton ||
     !dropOverlay ||
-    !translateSource ||
     !translateResult ||
     !translateFrom ||
     !translateTo ||
     !translateRunButton ||
-    !translateUseOcrButton ||
     !translateCopyButton ||
     !translateSwapButton ||
     !translateStatus ||
@@ -351,7 +337,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let translatorInstance: ITextTranslator | null = null;
   let translatorLoading: Promise<ITextTranslator> | null = null;
   let translationBusy = false;
-  let userTouchedTranslateFrom = false;
+
 
   const createTranslator =
     options.createTranslator ??
@@ -467,7 +453,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const setTranslateBusy = (busy: boolean): void => {
     translationBusy = busy;
     translateRunButton.disabled = busy;
-    translateUseOcrButton.disabled = busy;
     translateCopyButton.disabled = busy;
     translateSwapButton.disabled = busy;
     translateFrom.disabled = busy;
@@ -638,17 +623,20 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   };
 
   const updateTranslateFromDefault = (): void => {
-    if (userTouchedTranslateFrom) return;
     const engineId = activeEngineId ?? selectedEngineId;
     const ocrLanguage =
       engineId && supportsLanguageSelection(engineId) ? getSelectedLanguage(engineId) : 'eng';
     const mapped = engineId ? mapOcrLanguageToBergamot(engineId, ocrLanguage) : null;
     const next = mapped ?? DEFAULT_TRANSLATION_TO;
-    if (translateFrom.value !== next) {
+    if (translateFrom.value !== next && BERGAMOT_LANGUAGES[next]) {
       translateFrom.value = next;
+      setStoredTranslationLanguage('from', translateFrom.value);
     }
-    setStoredTranslationLanguage('from', translateFrom.value);
   };
+
+
+
+
 
   const populateEngines = (): void => {
     const engines = engineFactory.getAvailableEngines();
@@ -674,10 +662,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     const storedFrom = getStoredTranslationLanguage('from');
     if (storedFrom && BERGAMOT_LANGUAGES[storedFrom]) {
       translateFrom.value = storedFrom;
-      userTouchedTranslateFrom = true;
     } else {
       updateTranslateFromDefault();
     }
+
 
     const storedTo = getStoredTranslationLanguage('to');
     if (storedTo && BERGAMOT_LANGUAGES[storedTo]) {
@@ -770,6 +758,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     ocrOverlay.innerHTML = '';
     lastResult = null;
     copyOutputButton.classList.add('hidden');
+    translateResult.value = '';
+    setTranslateError();
+    setTranslateStatus('Ready to translate OCR output.');
   };
 
   imagePreview.addEventListener('error', (): void => {
@@ -933,6 +924,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       output.textContent =
         result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
       copyOutputButton.classList.toggle('hidden', result.text.trim().length === 0);
+      translateResult.value = '';
+      setTranslateError();
+      setTranslateStatus('OCR updated. Click Translate to translate it.');
       if (result.items && result.items.length > 0) {
         drawBoxes(result.items, processed.width, processed.height);
       } else {
@@ -1025,9 +1019,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   };
 
   translateFrom.addEventListener('change', (): void => {
-    userTouchedTranslateFrom = true;
     setStoredTranslationLanguage('from', translateFrom.value);
   });
+
+
 
   translateTo.addEventListener('change', (): void => {
     setStoredTranslationLanguage('to', translateTo.value);
@@ -1038,26 +1033,17 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     const toValue = translateTo.value;
     translateFrom.value = toValue;
     translateTo.value = fromValue;
-    userTouchedTranslateFrom = true;
     setStoredTranslationLanguage('from', translateFrom.value);
     setStoredTranslationLanguage('to', translateTo.value);
   });
 
-  translateUseOcrButton.addEventListener('click', (): void => {
-    const text = getOcrTextForTranslation();
-    if (!text) {
-      setTranslateStatus('Run OCR or enter text to translate.');
-      return;
-    }
-    translateSource.value = text;
-    setTranslateStatus('OCR output copied into source.');
-  });
+
 
   const runTranslation = async (): Promise<void> => {
     if (translationBusy) return;
-    const sourceText = translateSource.value.trim();
+    const sourceText = getOcrTextForTranslation().trim();
     if (!sourceText) {
-      setTranslateStatus('Enter text to translate.');
+      setTranslateStatus('Run OCR to translate.');
       return;
     }
 
@@ -1221,12 +1207,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer,
       urlInput,
       loadUrlButton,
-      translateSource,
       translateResult,
       translateFrom,
       translateTo,
       translateRunButton,
-      translateUseOcrButton,
       translateCopyButton,
       translateStatus,
       translateError,
