@@ -260,20 +260,6 @@ p {
   gap: 12px;
   flex-wrap: wrap;
 }
-
-.translate-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--ink-2);
-}
-
-.translate-toggle input {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-}
 .panel {
   background: var(--card);
   border-radius: var(--radius-md);
@@ -570,9 +556,29 @@ p {
 
 .image-preview-container {
   width: 100%;
-  display: flex;
-  justify-content: center;
+  display: block;
   margin-top: 12px;
+}
+
+.image-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .preview-wrapper {

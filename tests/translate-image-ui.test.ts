@@ -146,12 +146,10 @@ describe('Translate image UI', () => {
 
     const downloadButton = root.querySelector<HTMLButtonElement>('#translate-image-download')!;
     expect(downloadButton.disabled).toBe(false);
-    const toggle = root.querySelector<HTMLInputElement>('#translate-image-toggle')!;
-    toggle.click();
-    await flushPromises();
-
-    const preview = root.querySelector<HTMLImageElement>('#image-preview')!;
-    expect(preview.src).toContain('blob:');
+    const translatedCard = root.querySelector<HTMLDivElement>('#translated-preview-card')!;
+    const translatedPreview = root.querySelector<HTMLImageElement>('#translated-preview')!;
+    expect(translatedCard.classList.contains('hidden')).toBe(false);
+    expect(translatedPreview.src).toContain('blob:');
   });
 
   it('shows errors when image translation fails', async () => {

@@ -75,7 +75,6 @@ export interface AppInstance {
     translateError: HTMLDivElement;
     translateImageRunButton: HTMLButtonElement;
     translateImageDownloadButton: HTMLButtonElement;
-    translateImageToggle: HTMLInputElement;
     translateImageStatus: HTMLDivElement;
     translateImageError: HTMLDivElement;
   };
@@ -148,9 +147,25 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
           </div>
 
           <div id="image-preview-container" class="image-preview-container hidden">
-            <div id="preview-wrapper" class="preview-wrapper">
-              <img id="image-preview" class="image-preview" src="" alt="Preview" />
-              <div id="ocr-overlay" class="ocr-overlay"></div>
+            <div class="image-compare">
+              <div class="preview-card">
+                <div class="preview-label">Original</div>
+                <div id="preview-wrapper" class="preview-wrapper">
+                  <img id="image-preview" class="image-preview" src="" alt="Original preview" />
+                  <div id="ocr-overlay" class="ocr-overlay"></div>
+                </div>
+              </div>
+              <div id="translated-preview-card" class="preview-card hidden">
+                <div class="preview-label">Translated</div>
+                <div class="preview-wrapper">
+                  <img
+                    id="translated-preview"
+                    class="image-preview"
+                    src=""
+                    alt="Translated preview"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <button id="run-button" class="primary-button" type="button">Extract text</button>
@@ -217,10 +232,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
               <div id="translate-status" class="translate-status">Idle</div>
               <div id="translate-error" class="translate-error hidden"></div>
               <div class="translate-image-controls">
-                <label class="translate-toggle">
-                  <input id="translate-image-toggle" type="checkbox" />
-                  <span>Show translated image</span>
-                </label>
                 <div id="translate-image-status" class="translate-status">
                   Ready to translate image.
                 </div>
@@ -284,6 +295,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const retryButton = root.querySelector<HTMLButtonElement>('#retry-button');
   const imagePreviewContainer = root.querySelector<HTMLDivElement>('#image-preview-container');
   const imagePreview = root.querySelector<HTMLImageElement>('#image-preview');
+  const translatedPreviewCard = root.querySelector<HTMLDivElement>('#translated-preview-card');
+  const translatedPreview = root.querySelector<HTMLImageElement>('#translated-preview');
   const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay');
   const imageModal = root.querySelector<HTMLDivElement>('#image-modal');
   const modalImage = root.querySelector<HTMLImageElement>('#modal-image');
@@ -305,7 +318,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const translateImageDownloadButton = root.querySelector<HTMLButtonElement>(
     '#translate-image-download'
   );
-  const translateImageToggle = root.querySelector<HTMLInputElement>('#translate-image-toggle');
   const translateImageStatus = root.querySelector<HTMLDivElement>('#translate-image-status');
   const translateImageError = root.querySelector<HTMLDivElement>('#translate-image-error');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
@@ -333,6 +345,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !retryButton ||
     !imagePreviewContainer ||
     !imagePreview ||
+    !translatedPreviewCard ||
+    !translatedPreview ||
     !ocrOverlay ||
     !imageModal ||
     !modalImage ||
@@ -352,7 +366,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !translateError ||
     !translateImageRunButton ||
     !translateImageDownloadButton ||
-    !translateImageToggle ||
     !translateImageStatus ||
     !translateImageError ||
     methodTabs.length === 0 ||
@@ -387,10 +400,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let translationBusy = false;
   let translateImageBusy = false;
   let translatedPreviewUrl: string | null = null;
-  let originalPreviewSrc: string | null = null;
   let lastOriginalImageData: ImageData | null = null;
   let lastOcrSize: { width: number; height: number } | null = null;
   let sourceFilename: string | null = null;
+  let modalShowsOriginal = false;
 
 
   const createTranslator =
@@ -565,7 +578,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     translateImageBusy = busy;
     translateImageRunButton.disabled = busy;
     translateImageDownloadButton.disabled = busy || !translatedPreviewUrl;
-    translateImageToggle.disabled = busy || !translatedPreviewUrl;
   };
 
   const setBusy = (busy: boolean): void => {
@@ -581,8 +593,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       URL.revokeObjectURL(translatedPreviewUrl);
       translatedPreviewUrl = null;
     }
-    translateImageToggle.checked = false;
-    translateImageToggle.disabled = true;
+    translatedPreview.src = '';
+    translatedPreviewCard.classList.add('hidden');
     translateImageDownloadButton.disabled = true;
     translateImageRunButton.disabled = true;
     setTranslateImageStatus('Ready to translate image.');
@@ -599,7 +611,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   const updateTranslateImageAvailability = (): void => {
     translateImageRunButton.disabled = translateImageBusy || !canTranslateImage();
     translateImageDownloadButton.disabled = translateImageBusy || !translatedPreviewUrl;
-    translateImageToggle.disabled = translateImageBusy || !translatedPreviewUrl;
   };
 
   const registerDefaultEngines = (): void => {
@@ -899,8 +910,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreview.crossOrigin = 'anonymous';
       imagePreview.src = source;
     }
-    originalPreviewSrc = imagePreview.src;
-
     imagePreviewContainer.classList.remove('hidden');
     ocrOverlay.innerHTML = '';
     copyOutputButton.classList.add('hidden');
@@ -915,7 +924,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       setError(createInvalidImageError('Failed to load image. Check the URL or file format.'));
       imagePreviewContainer.classList.add('hidden');
       selectedSource = null;
-      originalPreviewSrc = null;
       resetTranslateImageState();
     }
   });
@@ -930,7 +938,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       selectedSource = null;
       fileMeta.textContent = 'No file selected.';
       output.textContent = 'Upload an image to begin.';
-      originalPreviewSrc = null;
       sourceFilename = null;
       lastResult = null;
       lastOriginalImageData = null;
@@ -1122,13 +1129,25 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   imagePreview.addEventListener('click', (): void => {
     if (imagePreview.src && !imagePreviewContainer.classList.contains('hidden')) {
+      modalShowsOriginal = true;
       modalImage.src = imagePreview.src;
       imageModal.classList.remove('hidden');
       document.body.style.overflow = 'hidden'; // Prevent scrolling
-
       if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
         drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+      } else {
+        ocrOverlayModal.innerHTML = '';
       }
+    }
+  });
+
+  translatedPreview.addEventListener('click', (): void => {
+    if (translatedPreview.src && !translatedPreviewCard.classList.contains('hidden')) {
+      modalShowsOriginal = false;
+      modalImage.src = translatedPreview.src;
+      imageModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      ocrOverlayModal.innerHTML = '';
     }
   });
 
@@ -1136,6 +1155,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     imageModal.classList.add('hidden');
     modalImage.src = '';
     ocrOverlayModal.innerHTML = '';
+    modalShowsOriginal = false;
     document.body.style.overflow = ''; // Restore scrolling
   };
 
@@ -1281,13 +1301,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         URL.revokeObjectURL(translatedPreviewUrl);
       }
       translatedPreviewUrl = URL.createObjectURL(response.blob);
+      translatedPreview.removeAttribute('crossorigin');
+      translatedPreview.src = translatedPreviewUrl;
+      translatedPreviewCard.classList.remove('hidden');
       translateImageDownloadButton.disabled = false;
-      translateImageToggle.disabled = false;
       setTranslateImageStatus('Image translated.');
-
-      if (translateImageToggle.checked) {
-        imagePreview.removeAttribute('crossorigin');
-        imagePreview.src = translatedPreviewUrl;
+      if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
+        requestAnimationFrame(() => {
+          drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+        });
       }
     } catch (error) {
       logError(error);
@@ -1322,26 +1344,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     link.remove();
   });
 
-  translateImageToggle.addEventListener('change', (): void => {
-    if (translateImageToggle.checked && translatedPreviewUrl) {
-      imagePreview.removeAttribute('crossorigin');
-      imagePreview.src = translatedPreviewUrl;
-    } else if (originalPreviewSrc) {
-      if (typeof selectedSource === 'string') {
-        imagePreview.crossOrigin = 'anonymous';
-      } else {
-        imagePreview.removeAttribute('crossorigin');
-      }
-      imagePreview.src = originalPreviewSrc;
-    }
-    if (imageModal && !imageModal.classList.contains('hidden')) {
-      modalImage.src = imagePreview.src;
-    }
-    if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
-      drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
-    }
-  });
-
   translateCopyButton.addEventListener('click', (): void => {
     const text = translateResult.value.trim();
     if (!text) {
@@ -1368,25 +1370,44 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     if (!items) return;
     overlay.innerHTML = '';
 
-    const displayWidth = image.clientWidth;
-    const displayHeight = image.clientHeight;
+    const containerWidth = overlay.clientWidth;
+    const containerHeight = overlay.clientHeight;
 
-    if (displayWidth === 0 || displayHeight === 0) return;
+    if (containerWidth === 0 || containerHeight === 0) return;
 
-    const scaleX = displayWidth / originalWidth;
-    const scaleY = displayHeight / originalHeight;
+    // Calculate rendered image dimensions within the container (object-fit: contain)
+    const imageRatio = originalWidth / originalHeight;
+    const containerRatio = containerWidth / containerHeight;
+
+    let renderWidth = containerWidth;
+    let renderHeight = containerHeight;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (containerRatio > imageRatio) {
+      // Container is wider than image: Image fits height
+      renderWidth = containerHeight * imageRatio;
+      offsetX = (containerWidth - renderWidth) / 2;
+    } else {
+      // Container is taller than image: Image fits width
+      renderHeight = containerWidth / imageRatio;
+      offsetY = (containerHeight - renderHeight) / 2;
+    }
+
+    const scaleX = renderWidth / originalWidth;
+    const scaleY = renderHeight / originalHeight;
 
     items.forEach((item) => {
       const box = document.createElement('div');
       box.className = 'ocr-box';
-      box.style.left = `${item.boundingBox.x * scaleX}px`;
-      box.style.top = `${item.boundingBox.y * scaleY}px`;
+      box.style.left = `${item.boundingBox.x * scaleX + offsetX}px`;
+      box.style.top = `${item.boundingBox.y * scaleY + offsetY}px`;
       box.style.width = `${item.boundingBox.width * scaleX}px`;
       box.style.height = `${item.boundingBox.height * scaleY}px`;
       box.title = `${item.text} (${Math.round(item.confidence * 100)}%) - Click to copy`;
       box.setAttribute('data-text', item.text);
 
-      const topPos = item.boundingBox.y * scaleY;
+      const topPos = item.boundingBox.y * scaleY + offsetY;
       if (topPos < 32) {
         box.classList.add('at-top');
       }
@@ -1429,7 +1450,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreview.addEventListener('load', updateMain, { once: true });
     }
 
-    if (!imageModal.classList.contains('hidden')) {
+    if (!imageModal.classList.contains('hidden') && modalShowsOriginal) {
       if (modalImage.complete) {
         updateModal();
       } else {
@@ -1473,7 +1494,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translateError,
       translateImageRunButton,
       translateImageDownloadButton,
-      translateImageToggle,
       translateImageStatus,
       translateImageError,
     },

@@ -310,15 +310,17 @@ describe('OCR Overlay tests', () => {
     });
 
     const imagePreview = root.querySelector<HTMLImageElement>('#image-preview')!;
+    const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay')!;
     Object.defineProperty(imagePreview, 'clientWidth', { value: 100 });
     Object.defineProperty(imagePreview, 'clientHeight', { value: 100 });
     Object.defineProperty(imagePreview, 'complete', { value: true });
+    Object.defineProperty(ocrOverlay, 'clientWidth', { value: 100 });
+    Object.defineProperty(ocrOverlay, 'clientHeight', { value: 100 });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
     attachFile(app.elements.fileInput, file);
     await app.runOcr();
 
-    const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay')!;
     const boxes = ocrOverlay.querySelectorAll('.ocr-box');
     expect(boxes.length).toBe(2);
     expect(boxes[0]!.classList.contains('at-top')).toBe(true);
@@ -350,16 +352,18 @@ describe('OCR Overlay tests', () => {
     });
 
     const imagePreview = root.querySelector<HTMLImageElement>('#image-preview')!;
+    const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay')!;
     let clientWidth = 100;
     Object.defineProperty(imagePreview, 'clientWidth', { get: () => clientWidth });
     Object.defineProperty(imagePreview, 'clientHeight', { value: 100 });
     Object.defineProperty(imagePreview, 'complete', { value: true });
+    Object.defineProperty(ocrOverlay, 'clientWidth', { get: () => clientWidth });
+    Object.defineProperty(ocrOverlay, 'clientHeight', { value: 100 });
 
     const file = new File([new Uint8Array([1])], 'sample.png', { type: 'image/png' });
     attachFile(app.elements.fileInput, file);
     await app.runOcr();
 
-    const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay')!;
     let box = ocrOverlay.querySelector('.ocr-box') as HTMLDivElement;
     expect(box.style.left).toBe('10px');
 
@@ -367,6 +371,6 @@ describe('OCR Overlay tests', () => {
     window.dispatchEvent(new Event('resize'));
 
     box = ocrOverlay.querySelector('.ocr-box') as HTMLDivElement;
-    expect(box.style.left).toBe('20px');
+    expect(box.style.left).toBe('60px');
   });
 });
