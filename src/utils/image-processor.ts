@@ -87,6 +87,22 @@ export class ImageProcessor {
     return context.getImageData(0, 0, targetWidth, targetHeight);
   }
 
+  async imageDataToBlob(imageData: ImageData, type: string = 'image/png'): Promise<Blob> {
+    const canvas = this.createCanvas(imageData.width, imageData.height);
+    const context = this.getContext(canvas);
+    context.putImageData(imageData, 0, 0);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create blob from canvas'));
+        }
+      }, type);
+    });
+  }
+
   private async loadBitmap(source: Blob | string): Promise<ImageBitmap> {
     if (this.env.createImageBitmap && source instanceof Blob) {
       return await this.env.createImageBitmap(source);

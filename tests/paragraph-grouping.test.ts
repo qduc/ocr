@@ -52,7 +52,7 @@ describe('buildParagraphTextForTranslation', () => {
     // In our implementation, we join lines with spaces for translation quality.
     expect(buildParagraphTextForTranslation(items)).toBe('Line 1 Line 2');
   });
-  
+
   it('should filter out whitespace-only items', () => {
     const items: OCRItem[] = [
       { text: 'Hello', confidence: 1, boundingBox: { x: 10, y: 10, width: 40, height: 20 } },

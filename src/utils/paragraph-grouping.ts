@@ -33,7 +33,7 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
   for (const item of sortedItems) {
     let placed = false;
     for (const line of lines) {
-      if (isInSameLine(item, line[0])) {
+      if (isInSameLine(item, line[0]!)) {
         line.push(item);
         placed = true;
         break;
@@ -47,8 +47,8 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
   // 2. Sort lines by Y and sort items within lines by X
   lines.forEach((line) => line.sort((a, b) => a.boundingBox.x - b.boundingBox.x));
   lines.sort((a, b) => {
-    const aY = a[0].boundingBox.y;
-    const bY = b[0].boundingBox.y;
+    const aY = a[0]!.boundingBox.y;
+    const bY = b[0]!.boundingBox.y;
     return aY - bY;
   });
 
@@ -57,7 +57,7 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
 
   const paragraphs: string[][] = [];
   let currentParagraph: string[] = [];
-  
+
   // Estimate median line height for thresholding
   const lineHeights = lines.map(line => {
     const minY = Math.min(...line.map(i => i.boundingBox.y));
@@ -67,16 +67,16 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
   const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
 
   for (let i = 0; i < lines.length; i++) {
-    const lineText = lines[i].map((item) => item.text).join(' ');
-    
+    const lineText = lines[i]!.map((item) => item.text).join(' ');
+
     if (i === 0) {
       currentParagraph.push(lineText);
       continue;
     }
 
-    const prevLine = lines[i - 1];
-    const currLine = lines[i];
-    
+    const prevLine = lines[i - 1]!;
+    const currLine = lines[i]!;
+
     const prevLineBottom = Math.max(...prevLine.map(item => item.boundingBox.y + item.boundingBox.height));
     const currLineTop = Math.min(...currLine.map(item => item.boundingBox.y));
     const gap = currLineTop - prevLineBottom;
@@ -95,6 +95,74 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
   return paragraphs
     .map((p) => p.join(' '))
     .join('\n\n');
+}
+
+export interface OCRLine {
+  text: string;
+  boundingBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  items: OCRItem[];
+}
+
+/**
+ * Groups OCR items into lines and computes a union bounding box for each line.
+ * Useful for region-based translation and write-back.
+ */
+export function groupOcrItemsIntoLines(items: OCRItem[]): OCRLine[] {
+  const filteredItems = items.filter((item) => item.text && item.text.trim().length > 0);
+
+  if (filteredItems.length === 0) {
+    return [];
+  }
+
+  // 1. Group items into lines
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const aCenterY = a.boundingBox.y + a.boundingBox.height / 2;
+    const bCenterY = b.boundingBox.y + b.boundingBox.height / 2;
+    return aCenterY - bCenterY;
+  });
+
+  const lineGroups: OCRItem[][] = [];
+  for (const item of sortedItems) {
+    let placed = false;
+    for (const line of lineGroups) {
+      if (isInSameLine(item, line[0]!)) {
+        line.push(item);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lineGroups.push([item]);
+    }
+  }
+
+  // 2. Sort items within lines by X and build OCRLine objects
+  return lineGroups.map((line) => {
+    line.sort((a, b) => a.boundingBox.x - b.boundingBox.x);
+    
+    const text = line.map((item) => item.text).join(' ');
+
+    const minX = Math.min(...line.map((i) => i.boundingBox.x));
+    const minY = Math.min(...line.map((i) => i.boundingBox.y));
+    const maxX = Math.max(...line.map((i) => i.boundingBox.x + i.boundingBox.width));
+    const maxY = Math.max(...line.map((i) => i.boundingBox.y + i.boundingBox.height));
+
+    return {
+      text,
+      boundingBox: {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      },
+      items: line,
+    };
+  }).sort((a, b) => a.boundingBox.y - b.boundingBox.y);
 }
 
 /**
