@@ -17,6 +17,7 @@ import {
   TESSERACT_LANGUAGES,
   EASYOCR_LANGUAGES,
 } from '@/utils/language-config';
+import { buildParagraphTextForTranslation } from '@/utils/paragraph-grouping';
 import type { ITextTranslator } from '@/types/translation';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
@@ -1037,7 +1038,14 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   });
 
   const getOcrTextForTranslation = (): string => {
-    const text = lastResult?.text ?? output.textContent ?? '';
+    let text = '';
+
+    if (lastResult?.items && lastResult.items.length > 0) {
+      text = buildParagraphTextForTranslation(lastResult.items);
+    } else {
+      text = lastResult?.text ?? output.textContent ?? '';
+    }
+
     if (
       !text ||
       text === 'Upload an image to begin.' ||

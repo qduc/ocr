@@ -122,6 +122,63 @@ describe('Translation UI', () => {
     void app;
   });
 
+  it('groups items into paragraphs for translation when bounding boxes are present', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const translateSpy = vi.fn((request: { text: string }) =>
+      Promise.resolve({ text: `translated:${request.text}` })
+    );
+    const translator: ITextTranslator = {
+      translate: translateSpy,
+      destroy: vi.fn(),
+    };
+
+    const mockOcrResult: OCRResult = {
+      text: 'line1line2', // raw text from engine (might be messy)
+      items: [
+        { text: 'Line 1', confidence: 1, boundingBox: { x: 10, y: 10, width: 100, height: 20 } },
+        { text: 'Line 2', confidence: 1, boundingBox: { x: 10, y: 35, width: 100, height: 20 } },
+        { text: 'Para 2', confidence: 1, boundingBox: { x: 10, y: 100, width: 100, height: 20 } },
+      ],
+    };
+
+    const ocrManager = {
+      setEngine: vi.fn((): Promise<void> => Promise.resolve()),
+      run: vi.fn((): Promise<OCRResult> => Promise.resolve(mockOcrResult)),
+    } as unknown as OCRManager;
+
+    initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      ocrManager,
+      registerEngines: (factory) => registerTestEngine(factory),
+      createTranslator: () => Promise.resolve(translator),
+    });
+
+    // We need to trigger OCR first to set lastResult
+    const fileInput = root.querySelector<HTMLInputElement>('#file-input')!;
+    attachFile(fileInput, new File(['test'], 'test.png', { type: 'image/png' }));
+    const runOcrButton = root.querySelector<HTMLButtonElement>('#run-button')!;
+    runOcrButton.click();
+    await flushPromises();
+
+    // Now click translate
+    const translateRunButton = root.querySelector<HTMLButtonElement>('#translate-run')!;
+    translateRunButton.click();
+    await flushPromises();
+
+    // The items should be grouped: "Line 1 Line 2\n\nPara 2"
+    // (Line 1 & 2 are grouped into one line/paragraph because gap is 5 < 20*1.5=30)
+    const expectedText = 'Line 1 Line 2\n\nPara 2';
+
+    expect(translateSpy).toHaveBeenCalledWith(expect.objectContaining({ text: expectedText }));
+    const result = root.querySelector<HTMLTextAreaElement>('#translate-result')!;
+    expect(result.value).toBe(`translated:${expectedText}`);
+  });
+
   it('translates OCR output after OCR completes', async () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.querySelector<HTMLElement>('#app');
