@@ -1,6 +1,17 @@
 import { OCRItem } from '../types/ocr-engine';
 
 /**
+ * Thresholds for grouping OCR items into lines and paragraphs.
+ * 
+ * LINE_CENTER_THRESHOLD: Max vertical distance between centers as a fraction of line height.
+ * LINE_OVERLAP_THRESHOLD: Min vertical overlap as a fraction of item height.
+ * PARAGRAPH_GAP_THRESHOLD: Max vertical gap between lines as a fraction of average line height.
+ */
+const LINE_CENTER_THRESHOLD = 0.4;
+const LINE_OVERLAP_THRESHOLD = 0.5;
+const PARAGRAPH_GAP_THRESHOLD = 1.5;
+
+/**
  * Groups OCR items into paragraphs and returns a single formatted string.
  * Lines are joined with spaces, and paragraphs are separated by double newlines.
  *
@@ -81,9 +92,9 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
     const currLineTop = Math.min(...currLine.map(item => item.boundingBox.y));
     const gap = currLineTop - prevLineBottom;
 
-    // Threshold: if gap is more than ~1.5x average line height, start new paragraph
+    // Threshold: if gap is more than threshold * average line height, start new paragraph
     // Or if the gap is negative (lines overlap horizontally but were split vertically), keep them together
-    if (gap > avgLineHeight * 1.5) {
+    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
       paragraphs.push(currentParagraph);
       currentParagraph = [lineText];
     } else {
@@ -190,8 +201,8 @@ export function groupOcrItemsIntoParagraphs(items: OCRItem[]): OCRParagraphRegio
     const prevLine = lines[i - 1]!;
     const gap = line.boundingBox.y - (prevLine.boundingBox.y + prevLine.boundingBox.height);
 
-    // If gap is more than ~1.5x average line height, start new paragraph
-    if (gap > avgLineHeight * 1.5) {
+    // If gap is more than threshold * average line height, start new paragraph
+    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
       paragraphs.push(mergeLinesToRegion(currentLines));
       currentLines = [line];
     } else {
@@ -239,17 +250,18 @@ function isInSameLine(item1: OCRItem, item2: OCRItem): boolean {
   const center1 = box1.y + box1.height / 2;
   const center2 = box2.y + box2.height / 2;
 
-  // If centers are within 25% of the larger height, likely same line
+  // If centers are within threshold of the larger height, likely same line
   const maxH = Math.max(box1.height, box2.height);
-  if (Math.abs(center1 - center2) < maxH * 0.4) {
+  if (Math.abs(center1 - center2) < maxH * LINE_CENTER_THRESHOLD) {
     return true;
   }
 
-  // Or if vertical overlap is > 50% of the smaller height
+  // Or if vertical overlap is > threshold of the smaller height
   const overlapTop = Math.max(box1.y, box2.y);
   const overlapBottom = Math.min(box1.y + box1.height, box2.y + box2.height);
   const overlap = Math.max(0, overlapBottom - overlapTop);
   const minH = Math.min(box1.height, box2.height);
 
-  return overlap > minH * 0.5;
+  return overlap > minH * LINE_OVERLAP_THRESHOLD;
 }
+
