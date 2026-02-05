@@ -1,7 +1,6 @@
-import {
-  LatencyOptimisedTranslator,
-  TranslatorBacking,
-} from '@browsermt/bergamot-translator/translator.js';
+// @ts-ignore
+import * as Bergamot from '@browsermt/bergamot-translator/translator.js';
+const { LatencyOptimisedTranslator, TranslatorBacking } = Bergamot as any;
 import type { ITextTranslator, TranslationRequest, TranslationResponse } from '@/types/translation';
 
 type BergamotInitOptions = {
@@ -85,6 +84,7 @@ const decompressGzip = async (buffer: ArrayBuffer): Promise<ArrayBuffer> => {
 export class BergamotTextTranslator implements ITextTranslator {
   private instance: LatencyOptimisedTranslatorLike | null = null;
   private initializing: Promise<LatencyOptimisedTranslatorLike> | null = null;
+  private translationQueue: Promise<unknown> = Promise.resolve();
 
   private async getTranslator(): Promise<LatencyOptimisedTranslatorLike> {
     if (this.instance) {
@@ -196,7 +196,7 @@ export class BergamotTextTranslator implements ITextTranslator {
         return buffer;
       };
 
-      const translator = new LatencyOptimisedTranslator(
+      const translator = new (LatencyOptimisedTranslator as any)(
         {
           workerUrl: workerUrl,
           downloadTimeout: 60000,
@@ -218,13 +218,29 @@ export class BergamotTextTranslator implements ITextTranslator {
 
   async translate(request: TranslationRequest): Promise<TranslationResponse> {
     const translator = await this.getTranslator();
-    const response = await translator.translate({
-      from: request.from,
-      to: request.to,
-      text: request.text,
-      html: request.html ?? false,
+
+    // LatencyOptimisedTranslator from @browsermt/bergamot-translator does not support
+    // concurrent translation requests. If a second request is made before the first one
+    // completes, it throws a SupersededError. We must serialize all translation requests.
+    const result = new Promise<TranslationResponse>((resolve, reject) => {
+      this.translationQueue = this.translationQueue
+        .catch(() => {}) // Ensure failures don't block the queue
+        .then(async () => {
+          try {
+            const response = await translator.translate({
+              from: request.from,
+              to: request.to,
+              text: request.text,
+              html: request.html ?? false,
+            });
+            resolve({ text: response.target.text });
+          } catch (error) {
+            reject(error);
+          }
+        });
     });
-    return { text: response.target.text };
+
+    return result;
   }
 
   destroy(): void {

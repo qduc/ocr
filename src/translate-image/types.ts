@@ -1,5 +1,6 @@
 import type { OCRItem, OCRStyle, OCRQuad } from '@/types/ocr-engine';
 import type { ITextTranslator } from '@/types/translation';
+import type { InpaintOptions } from './inpaint';
 
 export type RGB = [number, number, number];
 
@@ -26,9 +27,35 @@ export interface TranslateImageInput {
 
 export interface TranslateImageOptions {
   debug?: boolean;
+  inpaint?: InpaintOptions;
+}
+
+export interface TranslateImageDebugStep {
+  label: string;
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
+export interface TranslateImageDebugStats {
+  imageWidth: number;
+  imageHeight: number;
+  ocrWidth: number;
+  ocrHeight: number;
+  scaleX: number;
+  scaleY: number;
+  regionCount: number;
+  outOfBoundsRegions: number;
+  bounds: { x: number; y: number; width: number; height: number };
+  rawMaskPixels: number;
+  dilatedMaskPixels: number;
 }
 
 export interface TranslateImageOutput {
   blob: Blob;
-  debug?: { regions: Region[] };
+  debug?: {
+    regions: Region[];
+    steps?: TranslateImageDebugStep[];
+    stats?: TranslateImageDebugStats;
+  };
 }

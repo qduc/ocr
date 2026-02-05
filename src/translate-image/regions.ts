@@ -58,8 +58,8 @@ const median = (values: number[]): number => {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
-    ? (sorted[middle - 1] + sorted[middle]) / 2
-    : sorted[middle];
+    ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+    : (sorted[middle] ?? 0);
 };
 
 const unionBbox = (a: Bbox, b: Bbox): Bbox => {
@@ -147,13 +147,15 @@ export const buildRegions = (
       continue;
     }
     const target = candidates.reduce((best, current) => {
-      const bestDelta = Math.abs(token.centerY - best.centerY);
-      const currentDelta = Math.abs(token.centerY - current.centerY);
+      const bestDelta = Math.abs(token.centerY - (best?.centerY ?? 0));
+      const currentDelta = Math.abs(token.centerY - (current?.centerY ?? 0));
       return currentDelta < bestDelta ? current : best;
     }, candidates[0]);
-    target.tokens.push(token);
-    target.bbox = unionBbox(target.bbox, token.bbox);
-    target.centerY = target.bbox.y + target.bbox.height / 2;
+    if (target) {
+      target.tokens.push(token);
+      target.bbox = unionBbox(target.bbox, token.bbox);
+      target.centerY = target.bbox.y + target.bbox.height / 2;
+    }
   }
 
   const isCjk = isCjkLanguage(options.sourceLang);
@@ -172,12 +174,14 @@ export const buildRegions = (
       continue;
     }
     const previous = current[current.length - 1];
-    const gap = line.bbox.y - (previous.bbox.y + previous.bbox.height);
-    if (gap > 1.2 * medianHeight) {
-      paragraphs.push(current);
-      current = [line];
-    } else {
-      current.push(line);
+    if (previous) {
+      const gap = line.bbox.y - (previous.bbox.y + previous.bbox.height);
+      if (gap > 1.2 * medianHeight) {
+        paragraphs.push(current);
+        current = [line];
+      } else {
+        current.push(line);
+      }
     }
   }
   if (current.length > 0) {
@@ -188,7 +192,7 @@ export const buildRegions = (
     const groupTokens = group.flatMap((line) => line.tokens);
     const bbox = groupTokens.reduce(
       (acc, token) => unionBbox(acc, token.bbox),
-      groupTokens[0].bbox
+      groupTokens[0]?.bbox ?? { x: 0, y: 0, width: 0, height: 0 }
     );
     const regionItems = groupTokens.map((token) => token.item);
     const styleText = averageStyle(regionItems, 'text');

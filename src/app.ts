@@ -21,6 +21,8 @@ import type { ITextTranslator } from '@/types/translation';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
 import type {
+  TranslateImageDebugStats,
+  TranslateImageDebugStep,
   TranslateImageInput,
   TranslateImageOptions,
   TranslateImageOutput,
@@ -237,6 +239,11 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
                 </div>
               </div>
               <div id="translate-image-error" class="translate-error hidden"></div>
+              <div id="translate-debug" class="translate-debug hidden">
+                <div class="translate-debug-header">Pipeline snapshots</div>
+                <div id="translate-debug-stats" class="translate-debug-stats"></div>
+                <div id="translate-debug-steps" class="translate-debug-steps"></div>
+              </div>
             </div>
           </section>
         </div>
@@ -320,6 +327,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   );
   const translateImageStatus = root.querySelector<HTMLDivElement>('#translate-image-status');
   const translateImageError = root.querySelector<HTMLDivElement>('#translate-image-error');
+  const translateDebug = root.querySelector<HTMLDivElement>('#translate-debug');
+  const translateDebugStats = root.querySelector<HTMLDivElement>('#translate-debug-stats');
+  const translateDebugSteps = root.querySelector<HTMLDivElement>('#translate-debug-steps');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
   const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
 
@@ -368,6 +378,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     !translateImageDownloadButton ||
     !translateImageStatus ||
     !translateImageError ||
+    !translateDebug ||
+    !translateDebugStats ||
+    !translateDebugSteps ||
     methodTabs.length === 0 ||
     methodPanels.length === 0
   ) {
@@ -400,6 +413,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   let translationBusy = false;
   let translateImageBusy = false;
   let translatedPreviewUrl: string | null = null;
+  let debugStepUrls: string[] = [];
   let lastOriginalImageData: ImageData | null = null;
   let lastOcrSize: { width: number; height: number } | null = null;
   let sourceFilename: string | null = null;
@@ -565,6 +579,72 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
+  const clearTranslateDebug = (): void => {
+    debugStepUrls.forEach((url) => URL.revokeObjectURL(url));
+    debugStepUrls = [];
+    translateDebugSteps.innerHTML = '';
+    translateDebugStats.innerHTML = '';
+    translateDebug.classList.add('hidden');
+  };
+
+  const openModalWithImage = (src: string): void => {
+    modalShowsOriginal = false;
+    modalImage.src = src;
+    imageModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    ocrOverlayModal.innerHTML = '';
+  };
+
+  const renderTranslateDebug = (
+    steps: TranslateImageDebugStep[] | undefined,
+    stats: TranslateImageDebugStats | undefined
+  ): void => {
+    clearTranslateDebug();
+    if ((!steps || steps.length === 0) && !stats) return;
+    translateDebug.classList.remove('hidden');
+    if (stats) {
+      const lines = [
+        `Image: ${stats.imageWidth}×${stats.imageHeight}`,
+        `OCR: ${stats.ocrWidth}×${stats.ocrHeight}`,
+        `Scale: ${stats.scaleX.toFixed(3)} × ${stats.scaleY.toFixed(3)}`,
+        `Regions: ${stats.regionCount} (out-of-bounds: ${stats.outOfBoundsRegions})`,
+        `Bounds: x=${Math.round(stats.bounds.x)}, y=${Math.round(
+          stats.bounds.y
+        )}, w=${Math.round(stats.bounds.width)}, h=${Math.round(stats.bounds.height)}`,
+        `Mask pixels: raw=${stats.rawMaskPixels}, dilated=${stats.dilatedMaskPixels}`,
+      ];
+      const list = document.createElement('ul');
+      list.className = 'translate-debug-stats-list';
+      for (const line of lines) {
+        const item = document.createElement('li');
+        item.textContent = line;
+        list.append(item);
+      }
+      translateDebugStats.append(list);
+    }
+    for (const step of steps ?? []) {
+      const card = document.createElement('div');
+      card.className = 'translate-debug-card';
+
+      const label = document.createElement('div');
+      label.className = 'translate-debug-label';
+      label.textContent = step.label;
+
+      const img = document.createElement('img');
+      const url = URL.createObjectURL(step.blob);
+      debugStepUrls.push(url);
+      img.src = url;
+      img.alt = step.label;
+      img.className = 'translate-debug-image';
+      img.addEventListener('click', (): void => {
+        openModalWithImage(url);
+      });
+
+      card.append(label, img);
+      translateDebugSteps.append(card);
+    }
+  };
+
   const setTranslateBusy = (busy: boolean): void => {
     translationBusy = busy;
     translateRunButton.disabled = busy;
@@ -599,6 +679,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     translateImageRunButton.disabled = true;
     setTranslateImageStatus('Ready to translate image.');
     setTranslateImageError();
+    clearTranslateDebug();
   };
 
   const canTranslateImage = (): boolean => {
@@ -888,6 +969,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     lastOcrSize = null;
     lastResult = null;
     resetTranslateImageState();
+    clearTranslateDebug();
 
     if (source instanceof File) {
       fileMeta.textContent = `${source.name} (${Math.round(source.size / 1024)} KB)`;
@@ -1283,19 +1365,23 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
     setTranslateImageBusy(true);
     setTranslateImageError();
+    clearTranslateDebug();
     try {
       setTranslateImageStatus('Loading translator...');
       const translator = await getTranslator();
       setTranslateImageStatus('Translating image...');
-      const response = await translateImageImpl({
-        original: lastOriginalImageData,
-        ocrItems: lastResult.items,
-        engineId: selectedEngineId,
-        from: translateFrom.value,
-        to: translateTo.value,
-        translator,
-        ocrSize: lastOcrSize,
-      });
+      const response = await translateImageImpl(
+        {
+          original: lastOriginalImageData,
+          ocrItems: lastResult.items,
+          engineId: selectedEngineId,
+          from: translateFrom.value,
+          to: translateTo.value,
+          translator,
+          ocrSize: lastOcrSize,
+        },
+        { debug: true }
+      );
 
       if (translatedPreviewUrl) {
         URL.revokeObjectURL(translatedPreviewUrl);
@@ -1306,9 +1392,14 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translatedPreviewCard.classList.remove('hidden');
       translateImageDownloadButton.disabled = false;
       setTranslateImageStatus('Image translated.');
-      if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
+      renderTranslateDebug(response.debug?.steps, response.debug?.stats);
+      const currentResult = lastResult;
+      if (currentResult?.items && lastProcessedWidth && lastProcessedHeight) {
+        const items = currentResult.items;
+        const width = lastProcessedWidth;
+        const height = lastProcessedHeight;
         requestAnimationFrame(() => {
-          drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+          drawBoxes(items, width, height);
         });
       }
     } catch (error) {
@@ -1362,7 +1453,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
 
   const renderOverlay = (
     overlay: HTMLDivElement,
-    image: HTMLImageElement,
+    _image: HTMLImageElement,
     items: OCRResult['items'],
     originalWidth: number,
     originalHeight: number

@@ -1,4 +1,4 @@
-import type { CanvasLike } from './canvas';
+import type { CanvasLike, Context2D } from './canvas';
 import { createCanvas, getContext2d } from './canvas';
 
 export type TextAlignment = 'left' | 'right';
@@ -52,7 +52,7 @@ export const getFontFamily = (code: string): string => {
 const wrapText = (
   text: string,
   maxWidth: number,
-  context: CanvasRenderingContext2D,
+  context: Context2D,
   isCjk: boolean
 ): string[] => {
   const rawLines = text.split(/\r?\n/);

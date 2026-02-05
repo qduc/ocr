@@ -55,18 +55,24 @@ const solveLinearSystem = (matrix: number[][], vector: number[]): number[] => {
     augmented[i] = augmented[maxRow]!;
     augmented[maxRow] = temp;
 
-    const pivot = augmented[i]![i]!;
+    const pivot = augmented[i]?.[i] ?? 0;
     if (Math.abs(pivot) < 1e-8) {
       throw new Error('Homography solve failed.');
     }
-    for (let j = i; j <= n; j += 1) {
-      augmented[i]![j] /= pivot;
+    const rowI = augmented[i];
+    if (rowI) {
+      for (let j = i; j <= n; j += 1) {
+        rowI[j] = (rowI[j] ?? 0) / pivot;
+      }
     }
     for (let k = 0; k < n; k += 1) {
       if (k === i) continue;
-      const factor = augmented[k]![i]!;
-      for (let j = i; j <= n; j += 1) {
-        augmented[k]![j] -= factor * augmented[i]![j]!;
+      const rowK = augmented[k];
+      const factor = rowK?.[i] ?? 0;
+      if (rowK && rowI) {
+        for (let j = i; j <= n; j += 1) {
+          rowK[j] = (rowK[j] ?? 0) - factor * (rowI[j] ?? 0);
+        }
       }
     }
   }
@@ -174,10 +180,10 @@ export const warpMaskToQuad = (
 
       const outIdx = (y * bounds.width + x) * 4;
       for (let c = 0; c < 4; c += 1) {
-        const v00 = srcData.data[idx00 + c];
-        const v10 = srcData.data[idx10 + c];
-        const v01 = srcData.data[idx01 + c];
-        const v11 = srcData.data[idx11 + c];
+        const v00 = srcData.data[idx00 + c] ?? 0;
+        const v10 = srcData.data[idx10 + c] ?? 0;
+        const v01 = srcData.data[idx01 + c] ?? 0;
+        const v11 = srcData.data[idx11 + c] ?? 0;
         const v0 = v00 + (v10 - v00) * dx;
         const v1 = v01 + (v11 - v01) * dx;
         output.data[outIdx + c] = Math.round(v0 + (v1 - v0) * dy);

@@ -13,10 +13,12 @@ export const createCanvas = (width: number, height: number): CanvasLike => {
   throw new Error('Canvas creation is not available.');
 };
 
-export const getContext2d = (canvas: CanvasLike): CanvasRenderingContext2D => {
+export type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+export const getContext2d = (canvas: CanvasLike): Context2D => {
   const context = canvas.getContext('2d');
   if (!context) {
     throw new Error('Canvas 2D context is not available.');
   }
-  return context;
+  return context as Context2D;
 };

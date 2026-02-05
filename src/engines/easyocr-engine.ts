@@ -22,6 +22,9 @@ export interface EasyOCREngineOptions {
   language?: string;
   onProgress?: EasyOCRProgressCallback;
   modelBaseUrl?: string;
+  webgpu?: boolean;
+  debug?: boolean;
+  debugMode?: 'compare' | 'result' | 'debug';
 }
 
 const DEFAULT_LANGUAGE = 'en';

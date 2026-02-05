@@ -2,7 +2,7 @@
 
 ## MVP in this repo
 
-- **Inpaint**: Pure TypeScript fill-based background plate (no OpenCV.js dependency yet).
+- **Inpaint**: TypeScript-based area-filling fallback.
 - **Output**: Render at **original resolution** with ROI-only processing for performance.
 - **Translation**: One translation per **paragraph region** (grouped from OCR boxes).
 - **Geometry**: Homography warp support is implemented, but regions default to rectangular quads.
@@ -15,17 +15,17 @@
 **What:** erase the original text so you can place new text into clean pixels
 **Options (in order of ease):**
 
-* **OpenCV inpainting (Telea / Navier-Stokes)** using a mask of the text
+* **TypeScript inpainting** using a mask of the text (area-filling/blur)
 * **Patch-based / texture synthesis**
 * **Diffusion inpaint** (best quality, heavier)
 
 **Complexity:**
 
-* OpenCV inpaint: **2**
+* TS inpaint: **2**
 * Patch/texture synthesis: **3–4**
 * Diffusion inpaint: **4–5**
 
-**Quick win:** ✅ **YES** (OpenCV inpaint with a good mask is huge)
+**Quick win:** ✅ **YES** (TS inpaint with a good mask is sufficient)
 
 **Notes that matter a lot:**
 
