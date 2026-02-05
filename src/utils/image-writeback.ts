@@ -1,10 +1,13 @@
-import { OCRLine } from './paragraph-grouping';
+import { OCRParagraphRegion } from './paragraph-grouping';
 
 export interface WriteBackOptions {
-  fontSizeFactor?: number; // scale factor for font size relative to box height
+  fontSizeFactor?: number; // scale factor for font size relative to box height (fallback if original size cannot be detected)
   minFontSize?: number;
+  maxFontSize?: number; // manual override for maximum font size
   fontFamily?: string;
   fillOpacity?: number;
+  paddingFactor?: number; // padding inside the bounding box (default 0.1)
+  lineSpacing?: number;
 }
 
 /**
@@ -13,7 +16,7 @@ export interface WriteBackOptions {
  */
 export function renderTranslationToImage(
   canvas: HTMLCanvasElement,
-  regions: Array<OCRLine & { translatedText: string }>,
+  regions: Array<OCRParagraphRegion & { translatedText: string }>,
   scaleX: number,
   scaleY: number,
   options: WriteBackOptions = {}
@@ -22,24 +25,28 @@ export function renderTranslationToImage(
   if (!ctx) throw new Error('Could not get canvas context');
 
   const {
-    fontSizeFactor = 0.7,
+    fontSizeFactor = 0.85,
     minFontSize = 8,
     fontFamily = "'Space Grotesk', system-ui, sans-serif",
     fillOpacity = 1.0,
+    paddingFactor = 0.1,
+    lineSpacing = 1.2,
   } = options;
 
   for (const region of regions) {
     const { x, y, width, height } = region.boundingBox;
-    
+
     // Scale coordinates to original image size
     const sx = x * scaleX;
     const sy = y * scaleY;
     const sw = width * scaleX;
     const sh = height * scaleY;
 
+    if (sw <= 0 || sh <= 0) continue;
+
     // 1. Sample background color
     const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
-    
+
     // 2. Clear original text with solid fill
     ctx.globalAlpha = fillOpacity;
     ctx.fillStyle = bgColor;
@@ -51,35 +58,97 @@ export function renderTranslationToImage(
     ctx.fillStyle = textColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
-    // Estimate font size based on box height or width
-    const fontSize = Math.max(minFontSize, Math.round(sh * fontSizeFactor));
-    ctx.font = `${fontSize}px ${fontFamily}`;
 
-    const lines = wrapText(ctx, region.translatedText, sw * 0.9);
-    const lineSpacing = 1.2;
-    const totalHeight = lines.length * fontSize * lineSpacing;
-    
-    // If text is too tall, shrink font size
-    let currentFontSize = fontSize;
-    let currentLines = lines;
-    if (totalHeight > sh * 0.9 && currentFontSize > minFontSize) {
-      currentFontSize = Math.max(minFontSize, Math.round(currentFontSize * (sh * 0.9 / totalHeight)));
-      ctx.font = `${currentFontSize}px ${fontFamily}`;
-      currentLines = wrapText(ctx, region.translatedText, sw * 0.9);
-    }
+    // Estimate original font size based on median item height
+    // We use this as a hard upper bound so the translation doesn't look bigger than original text
+    const itemHeights = region.items.map((i) => i.boundingBox.height * scaleY);
+    const medianItemHeight = itemHeights.length > 0 ? getMedian(itemHeights) : sh * fontSizeFactor;
+    const baseFontSize = options.maxFontSize ?? Math.max(minFontSize, Math.round(medianItemHeight));
 
-    const startY = sy + sh / 2 - ((currentLines.length - 1) * currentFontSize * lineSpacing) / 2;
-    
-    currentLines.forEach((line, i) => {
-      ctx.fillText(line, sx + sw / 2, startY + i * currentFontSize * lineSpacing);
+    // Determine the best font size that fits the box (binary search fit)
+    const maxWidth = sw * (1 - paddingFactor);
+    const maxHeight = sh * (1 - paddingFactor);
+    const { fontSize: fittingFontSize, lines: fittingLines } = fitTextToBox(
+      ctx,
+      region.translatedText,
+      maxWidth,
+      maxHeight,
+      minFontSize,
+      baseFontSize,
+      lineSpacing,
+      fontFamily
+    );
+
+    ctx.font = `${fittingFontSize}px ${fontFamily}`;
+    const totalTextHeight = fittingLines.length * fittingFontSize * lineSpacing;
+    const startY = sy + sh / 2 - (totalTextHeight - fittingFontSize * lineSpacing) / 2;
+
+    fittingLines.forEach((line, i) => {
+      ctx.fillText(line, sx + sw / 2, startY + i * fittingFontSize * lineSpacing);
     });
   }
 }
 
+/**
+ * Finds the largest font size (up to maxFontSize) that fits the given box using binary search.
+ */
+function fitTextToBox(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  minFontSize: number,
+  maxFontSize: number,
+  lineSpacing: number,
+  fontFamily: string
+): { fontSize: number; lines: string[] } {
+  let low = minFontSize;
+  let high = maxFontSize;
+  let bestFontSize = minFontSize;
+  let bestLines = wrapText(ctx, text, maxWidth, `${minFontSize}px ${fontFamily}`);
+
+  // If even the min font size doesn't fit height-wise, we just return it and let it overflow or be cut
+  const minLines = bestLines;
+  const minHeight = minLines.length * minFontSize * lineSpacing;
+  if (minHeight > maxHeight && minFontSize === low) {
+    // Already set to best possible
+  }
+
+  // Binary search for the largest font size that fits
+  for (let i = 0; i < 10; i++) {
+    // 10 iterations is enough for sub-pixel precision in common ranges
+    if (high - low < 0.5) break;
+
+    const mid = (low + high) / 2;
+    ctx.font = `${mid}px ${fontFamily}`;
+    const lines = wrapText(ctx, text, maxWidth, ctx.font);
+    const totalHeight = lines.length * mid * lineSpacing;
+
+    if (totalHeight <= maxHeight) {
+      bestFontSize = mid;
+      bestLines = lines;
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return { fontSize: Math.floor(bestFontSize), lines: bestLines };
+}
+
+function getMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 !== 0) {
+    return sorted[mid]!;
+  }
+  // even length: average middle two (assert non-undefined)
+  return (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
 function sampleBackgroundColor(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): string {
   // Sample a few points around the box to guess background
-  // Simple approach: sample the corners and edges
   try {
     const samples: [number, number, number][] = [];
     const points: [number, number][] = [
@@ -88,20 +157,18 @@ function sampleBackgroundColor(ctx: CanvasRenderingContext2D, x: number, y: numb
     ];
 
     for (const [px, py] of points) {
-      const clampedX = Math.max(0, Math.min(ctx.canvas.width - 1, px));
-      const clampedY = Math.max(0, Math.min(ctx.canvas.height - 1, py));
+      const clampedX = Math.max(0, Math.min(ctx.canvas.width - 1, Math.round(px)));
+      const clampedY = Math.max(0, Math.min(ctx.canvas.height - 1, Math.round(py)));
       const data = ctx.getImageData(clampedX, clampedY, 1, 1).data;
       samples.push([data[0] ?? 0, data[1] ?? 0, data[2] ?? 0]);
     }
 
-    // Use median or average. Median is better against outliers (text pixels)
     const avgR = Math.round(samples.reduce((sum, s) => sum + s[0], 0) / samples.length);
     const avgG = Math.round(samples.reduce((sum, s) => sum + s[1], 0) / samples.length);
     const avgB = Math.round(samples.reduce((sum, s) => sum + s[2], 0) / samples.length);
 
     return `rgb(${avgR}, ${avgG}, ${avgB})`;
   } catch (e) {
-    // Fallback if getImageData fails (e.g. tainted canvas)
     return 'white';
   }
 }
@@ -115,20 +182,48 @@ function getContrastColor(rgbStr: string): string {
   return yiq >= 128 ? 'black' : 'white';
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = words[0] || '';
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, font: string): string[] {
+  ctx.font = font;
+  const paragraphs = text.split('\n');
+  const allLines: string[] = [];
 
-  for (const word of words.slice(1)) {
-    const width = ctx.measureText(currentLine + ' ' + word).width;
-    if (width < maxWidth) {
-      currentLine += ' ' + word;
-    } else {
-      lines.push(currentLine);
-      currentLine = word;
+  for (const paragraph of paragraphs) {
+    if (!paragraph.trim()) {
+      allLines.push('');
+      continue;
     }
+
+    const words = paragraph.split(' ');
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      const metrics = ctx.measureText(testLine);
+
+      if (metrics.width <= maxWidth || !currentLine) {
+        currentLine = testLine;
+      } else {
+        allLines.push(currentLine);
+        currentLine = word;
+      }
+
+      // Handle extremely long words that exceed maxWidth by themselves
+      if (ctx.measureText(currentLine).width > maxWidth) {
+        // Simple character-level break for long tokens
+        let temp = '';
+        for (const char of currentLine) {
+          if (ctx.measureText(temp + char).width <= maxWidth) {
+            temp += char;
+          } else {
+            if (temp) allLines.push(temp);
+            temp = char;
+          }
+        }
+        currentLine = temp;
+      }
+    }
+    if (currentLine) allLines.push(currentLine);
   }
-  lines.push(currentLine);
-  return lines;
+
+  return allLines;
 }

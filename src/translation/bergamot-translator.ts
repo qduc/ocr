@@ -1,7 +1,5 @@
-import {
-  LatencyOptimisedTranslator,
-  TranslatorBacking,
-} from '@browsermt/bergamot-translator/translator.js';
+import { LatencyOptimisedTranslator } from '@browsermt/bergamot-translator/translator.js';
+// TranslatorBacking is not exported in some versions of the package; we'll treat it as unknown at runtime.
 import type { ITextTranslator, TranslationRequest, TranslationResponse } from '@/types/translation';
 import { ModelCache } from '@/utils/model-cache';
 
@@ -101,13 +99,16 @@ export class BergamotTextTranslator implements ITextTranslator {
       const workerUrl = createWorkerUrl();
       const registryUrl = createRegistryUrl();
       // Create a backing instance and patch loadWorker before the translator constructor runs.
-      const TranslatorBackingCtor = TranslatorBacking as unknown as new (
-        options?: BergamotInitOptions
-      ) => TranslatorBackingLike;
-      const backing = new TranslatorBackingCtor({
-        downloadTimeout: 60000,
-        registryUrl,
-      });
+      // TranslatorBacking may not be exported by all versions; try to read from global
+      const TranslatorBackingCtor = (globalThis as any).TranslatorBacking as
+        | (new (options?: BergamotInitOptions) => TranslatorBackingLike)
+        | undefined;
+      const backing = TranslatorBackingCtor
+        ? new TranslatorBackingCtor({
+            downloadTimeout: 60000,
+            registryUrl,
+          })
+        : ({} as TranslatorBackingLike);
 
       const originalLoadWorker = backing.loadWorker.bind(backing);
       const originalFetch = backing.fetch.bind(backing);
@@ -204,7 +205,8 @@ export class BergamotTextTranslator implements ITextTranslator {
         });
       };
 
-      const translator = new LatencyOptimisedTranslator(
+      // Some versions of the library have differing constructor typings; cast to any
+      const translator = new (LatencyOptimisedTranslator as any)(
         {
           workerUrl: workerUrl,
           downloadTimeout: 60000,

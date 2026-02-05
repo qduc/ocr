@@ -120,14 +120,14 @@ describe('Write-back UI', () => {
     // 2. Click Write-back
     const writebackButton = root.querySelector<HTMLButtonElement>('#translate-writeback')!;
     writebackButton.click();
-    
+
     await flushPromises(); // Grouping + translating
     await flushPromises(); // Rendering + exporting
 
     // 3. Assertions
     const translatedContainer = root.querySelector<HTMLDivElement>('#translated-image-container')!;
     const translatedPreview = root.querySelector<HTMLImageElement>('#translated-image-preview')!;
-    
+
     expect(translatedContainer.classList.contains('hidden')).toBe(false);
     expect(translatedPreview.src).toBe('blob:test');
   });

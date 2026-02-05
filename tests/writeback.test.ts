@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { groupOcrItemsIntoLines } from '../src/utils/paragraph-grouping';
+import { groupOcrItemsIntoLines, groupOcrItemsIntoParagraphs } from '../src/utils/paragraph-grouping';
 import { OCRItem } from '../src/types/ocr-engine';
 
 describe('groupOcrItemsIntoLines', () => {
@@ -15,7 +15,7 @@ describe('groupOcrItemsIntoLines', () => {
     const lines = groupOcrItemsIntoLines(items);
 
     expect(lines).toHaveLength(2);
-    
+
     // First line
     expect(lines[0].text).toBe('Hello World');
     expect(lines[0].boundingBox.x).toBe(10);
@@ -32,5 +32,29 @@ describe('groupOcrItemsIntoLines', () => {
 
   it('handles empty items', () => {
     expect(groupOcrItemsIntoLines([])).toEqual([]);
+  });
+});
+
+describe('groupOcrItemsIntoParagraphs', () => {
+  it('groups lines into paragraphs based on vertical gap', () => {
+    const items: OCRItem[] = [
+      // Paragraph 1: Two lines close together
+      { text: 'Line 1', confidence: 0.9, boundingBox: { x: 10, y: 10, width: 100, height: 20 } },
+      { text: 'Line 2', confidence: 0.9, boundingBox: { x: 10, y: 40, width: 100, height: 20 } }, // Gap 10 ( < 20 * 1.5 )
+
+      // Paragraph 2: Far from first
+      { text: 'Para 2', confidence: 0.9, boundingBox: { x: 10, y: 100, width: 100, height: 20 } }, // Gap 40 ( > 20 * 1.5 )
+    ];
+
+    const paragraphs = groupOcrItemsIntoParagraphs(items);
+
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[0].text).toBe('Line 1 Line 2');
+    expect(paragraphs[0].boundingBox.height).toBe(50); // 40 + 20 - 10
+    expect(paragraphs[1].text).toBe('Para 2');
+  });
+
+  it('handles empty items', () => {
+    expect(groupOcrItemsIntoParagraphs([])).toEqual([]);
   });
 });

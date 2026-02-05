@@ -16,6 +16,7 @@
 - `npm run build` runs `tsc` then bundles with Vite into `dist/`.
 - `npm run preview` serves the production build locally.
 - `npm test` runs the test suite once with Vitest.
+- `npm run typecheck` runs `tsc --noEmit` for type checking.
 - `npm run lint` checks TypeScript/ESLint rules.
 - `npm run format` applies Prettier to `src/**/*.{ts,tsx}`.
 
@@ -30,7 +31,7 @@
 - Test files follow `*.test.ts` under `tests/`.
 - Keep tests focused on engine selection, OCR result accuracy (including bounding boxes), and UI behavior.
 - Run locally with `npm test` or watch mode via `npm run test:watch`.
-- IMPORTANT: Always run test and lint after finishing a task.
+- IMPORTANT: Always run test, typecheck and lint after finishing a task.
 
 ## Decision Log & Specs
 - Track rationale in `docs/DECISION_LOG.md`.

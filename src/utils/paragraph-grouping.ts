@@ -108,6 +108,8 @@ export interface OCRLine {
   items: OCRItem[];
 }
 
+export type OCRParagraphRegion = OCRLine;
+
 /**
  * Groups OCR items into lines and computes a union bounding box for each line.
  * Useful for region-based translation and write-back.
@@ -142,27 +144,87 @@ export function groupOcrItemsIntoLines(items: OCRItem[]): OCRLine[] {
   }
 
   // 2. Sort items within lines by X and build OCRLine objects
-  return lineGroups.map((line) => {
-    line.sort((a, b) => a.boundingBox.x - b.boundingBox.x);
-    
-    const text = line.map((item) => item.text).join(' ');
+  return lineGroups
+    .map((line) => {
+      line.sort((a, b) => a.boundingBox.x - b.boundingBox.x);
 
-    const minX = Math.min(...line.map((i) => i.boundingBox.x));
-    const minY = Math.min(...line.map((i) => i.boundingBox.y));
-    const maxX = Math.max(...line.map((i) => i.boundingBox.x + i.boundingBox.width));
-    const maxY = Math.max(...line.map((i) => i.boundingBox.y + i.boundingBox.height));
+      const text = line.map((item) => item.text).join(' ');
 
-    return {
-      text,
-      boundingBox: {
-        x: minX,
-        y: minY,
-        width: maxX - minX,
-        height: maxY - minY,
-      },
-      items: line,
-    };
-  }).sort((a, b) => a.boundingBox.y - b.boundingBox.y);
+      const minX = Math.min(...line.map((i) => i.boundingBox.x));
+      const minY = Math.min(...line.map((i) => i.boundingBox.y));
+      const maxX = Math.max(...line.map((i) => i.boundingBox.x + i.boundingBox.width));
+      const maxY = Math.max(...line.map((i) => i.boundingBox.y + i.boundingBox.height));
+
+      return {
+        text,
+        boundingBox: {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        },
+        items: line,
+      };
+    })
+    .sort((a, b) => a.boundingBox.y - b.boundingBox.y);
+}
+
+/**
+ * Groups OCR items into paragraph regions.
+ * Reuses the line grouping logic and merges lines into paragraphs based on vertical gaps.
+ */
+export function groupOcrItemsIntoParagraphs(items: OCRItem[]): OCRParagraphRegion[] {
+  const lines = groupOcrItemsIntoLines(items);
+  if (lines.length === 0) return [];
+
+  // Estimate average line height for thresholding
+  const lineHeights = lines.map((l) => l.boundingBox.height);
+  const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+
+  const paragraphs: OCRParagraphRegion[] = [];
+  // Start with the first line to avoid index-undefined checks inside loop
+  let currentLines: OCRLine[] = [lines[0]!];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    const prevLine = lines[i - 1]!;
+    const gap = line.boundingBox.y - (prevLine.boundingBox.y + prevLine.boundingBox.height);
+
+    // If gap is more than ~1.5x average line height, start new paragraph
+    if (gap > avgLineHeight * 1.5) {
+      paragraphs.push(mergeLinesToRegion(currentLines));
+      currentLines = [line];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  paragraphs.push(mergeLinesToRegion(currentLines));
+
+  return paragraphs;
+}
+
+/**
+ * Merges multiple OCR lines into a single region.
+ */
+function mergeLinesToRegion(lines: OCRLine[]): OCRParagraphRegion {
+  const text = lines.map((l) => l.text).join(' ');
+  const items = lines.flatMap((l) => l.items);
+
+  const minX = Math.min(...lines.map((l) => l.boundingBox.x));
+  const minY = Math.min(...lines.map((l) => l.boundingBox.y));
+  const maxX = Math.max(...lines.map((l) => l.boundingBox.x + l.boundingBox.width));
+  const maxY = Math.max(...lines.map((l) => l.boundingBox.y + l.boundingBox.height));
+
+  return {
+    text,
+    boundingBox: {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    },
+    items,
+  };
 }
 
 /**

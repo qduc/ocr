@@ -17,7 +17,10 @@ import {
   TESSERACT_LANGUAGES,
   EASYOCR_LANGUAGES,
 } from '@/utils/language-config';
-import { groupOcrItemsIntoLines, buildParagraphTextForTranslation } from '@/utils/paragraph-grouping';
+import {
+  groupOcrItemsIntoParagraphs,
+  buildParagraphTextForTranslation,
+} from '@/utils/paragraph-grouping';
 import type { ITextTranslator } from '@/types/translation';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
@@ -1166,13 +1169,13 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     setTranslateError();
     try {
       setTranslateStatus('Preparing regions...');
-      const regions = groupOcrItemsIntoLines(lastResult.items);
+      const regions = groupOcrItemsIntoParagraphs(lastResult.items);
       const translator = await getTranslator();
-      
+
       const translatedRegions = [];
       for (let i = 0; i < regions.length; i++) {
         setTranslateStatus(`Translating region ${i + 1}/${regions.length}...`);
-        const region = regions[i];
+        const region = regions[i]!;
         const response = await translator.translate({
           from: translateFrom.value,
           to: translateTo.value,
@@ -1207,7 +1210,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       currentTranslatedPreviewUrl = URL.createObjectURL(blob);
       translatedImagePreview.src = currentTranslatedPreviewUrl;
       translatedImageContainer.classList.remove('hidden');
-      
+
       setTranslateStatus('Done. Translated image ready.');
     } catch (error) {
       logError(error);
@@ -1232,6 +1235,18 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     a.href = currentTranslatedPreviewUrl;
     a.download = `translated_${Date.now()}.png`;
     a.click();
+  });
+
+  // Allow clicking the translated preview to open the same image modal (enlarge)
+  translatedImagePreview.addEventListener('click', (): void => {
+    if (translatedImagePreview.src && !translatedImageContainer.classList.contains('hidden')) {
+      // Show translated image in modal. Do not draw OCR boxes here to avoid
+      // coordinate mismatches between processed and written-back image sizes.
+      modalImage.src = translatedImagePreview.src;
+      ocrOverlayModal.innerHTML = '';
+      imageModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
   });
 
   translateCopyButton.addEventListener('click', (): void => {

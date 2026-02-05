@@ -22,6 +22,10 @@ export interface EasyOCREngineOptions {
   language?: string;
   onProgress?: EasyOCRProgressCallback;
   modelBaseUrl?: string;
+  // Optional runtime hints accepted by callers; ignored by engine if unused
+  webgpu?: boolean;
+  debug?: boolean;
+  debugMode?: string;
 }
 
 const DEFAULT_LANGUAGE = 'en';
