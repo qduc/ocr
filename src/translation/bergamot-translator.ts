@@ -3,6 +3,7 @@ import {
   TranslatorBacking,
 } from '@browsermt/bergamot-translator/translator.js';
 import type { ITextTranslator, TranslationRequest, TranslationResponse } from '@/types/translation';
+import { ModelCache } from '@/utils/model-cache';
 
 type BergamotInitOptions = {
   cacheSize?: number;
@@ -85,6 +86,11 @@ const decompressGzip = async (buffer: ArrayBuffer): Promise<ArrayBuffer> => {
 export class BergamotTextTranslator implements ITextTranslator {
   private instance: LatencyOptimisedTranslatorLike | null = null;
   private initializing: Promise<LatencyOptimisedTranslatorLike> | null = null;
+
+  private static readonly cache = new ModelCache({
+    dbName: 'ocr-model-cache',
+    storeName: 'translation-models',
+  });
 
   private async getTranslator(): Promise<LatencyOptimisedTranslatorLike> {
     if (this.instance) {
@@ -189,11 +195,13 @@ export class BergamotTextTranslator implements ITextTranslator {
         checksum?: string,
         extra?: { signal?: AbortSignal }
       ): Promise<ArrayBuffer> => {
-        const buffer = await originalFetch(url, checksum, extra);
-        if (url.endsWith('.gz')) {
-          return decompressGzip(buffer);
-        }
-        return buffer;
+        return BergamotTextTranslator.cache.loadOrFetch(url, async () => {
+          const buffer = await originalFetch(url, checksum, extra);
+          if (url.endsWith('.gz')) {
+            return decompressGzip(buffer);
+          }
+          return buffer;
+        });
       };
 
       const translator = new LatencyOptimisedTranslator(
