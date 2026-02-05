@@ -1,5 +1,8 @@
-import { LatencyOptimisedTranslator } from '@browsermt/bergamot-translator/translator.js';
-// TranslatorBacking is not exported in some versions of the package; we'll treat it as unknown at runtime.
+import {
+  LatencyOptimisedTranslator,
+  TranslatorBacking,
+} from '@browsermt/bergamot-translator/translator.js';
+// TranslatorBacking may not be exported in some versions of the package; we'll try to import it first, then fall back to global.
 import type { ITextTranslator, TranslationRequest, TranslationResponse } from '@/types/translation';
 import { ModelCache } from '@/utils/model-cache';
 
@@ -99,8 +102,8 @@ export class BergamotTextTranslator implements ITextTranslator {
       const workerUrl = createWorkerUrl();
       const registryUrl = createRegistryUrl();
       // Create a backing instance and patch loadWorker before the translator constructor runs.
-      // TranslatorBacking may not be exported by all versions; try to read from global
-      const TranslatorBackingCtor = (globalThis as any).TranslatorBacking as
+      // TranslatorBacking may not be exported by all versions; try to read from global if import failed
+      const TranslatorBackingCtor = (TranslatorBacking || (globalThis as any).TranslatorBacking) as
         | (new (options?: BergamotInitOptions) => TranslatorBackingLike)
         | undefined;
       const backing = TranslatorBackingCtor
@@ -108,10 +111,16 @@ export class BergamotTextTranslator implements ITextTranslator {
             downloadTimeout: 60000,
             registryUrl,
           })
-        : ({} as TranslatorBackingLike);
+        : ({
+            onerror: (err: Error) => console.error(err),
+            options: { downloadTimeout: 60000, registryUrl },
+          } as unknown as TranslatorBackingLike);
 
-      const originalLoadWorker = backing.loadWorker.bind(backing);
-      const originalFetch = backing.fetch.bind(backing);
+      const originalLoadWorker =
+        typeof backing.loadWorker === 'function' ? backing.loadWorker.bind(backing) : null;
+      const originalFetch =
+        typeof backing.fetch === 'function' ? backing.fetch.bind(backing) : null;
+
       backing.loadWorker = function (this: TranslatorBackingLike): Promise<WorkerHandle> {
         // If we have a custom workerUrl, we use it.
         // The library's default uses new URL('./worker/translator-worker.js', import.meta.url)
@@ -188,6 +197,9 @@ export class BergamotTextTranslator implements ITextTranslator {
           };
           return loadWithCustomWorker();
         }
+        if (!originalLoadWorker) {
+          throw new Error('TranslatorBacking.loadWorker is not available');
+        }
         return originalLoadWorker();
       };
 
@@ -197,6 +209,11 @@ export class BergamotTextTranslator implements ITextTranslator {
         extra?: { signal?: AbortSignal }
       ): Promise<ArrayBuffer> => {
         return BergamotTextTranslator.cache.loadOrFetch(url, async () => {
+          if (!originalFetch) {
+            // Fallback to global fetch if originalFetch is missing (should not happen if backing is valid)
+            const response = await fetch(url, { signal: extra?.signal });
+            return response.arrayBuffer();
+          }
           const buffer = await originalFetch(url, checksum, extra);
           if (url.endsWith('.gz')) {
             return decompressGzip(buffer);

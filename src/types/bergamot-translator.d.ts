@@ -19,8 +19,12 @@ declare module '@browsermt/bergamot-translator/translator.js' {
     };
   }
 
-  export class LatencyOptimisedTranslator {
+  export class TranslatorBacking {
     constructor(options?: TranslatorInitOptions);
+  }
+
+  export class LatencyOptimisedTranslator {
+    constructor(options?: TranslatorInitOptions, backing?: TranslatorBacking);
     init(): Promise<LatencyOptimisedTranslator>;
     translate(request: TranslateRequest): Promise<TranslateResponse>;
     delete(): void;
