@@ -103,7 +103,8 @@ export class BergamotTextTranslator implements ITextTranslator {
       const registryUrl = createRegistryUrl();
       // Create a backing instance and patch loadWorker before the translator constructor runs.
       // TranslatorBacking may not be exported by all versions; try to read from global if import failed
-      const TranslatorBackingCtor = (TranslatorBacking || (globalThis as any).TranslatorBacking) as
+      const globalBacking = (globalThis as unknown as { TranslatorBacking?: unknown }).TranslatorBacking;
+      const TranslatorBackingCtor = (TranslatorBacking || globalBacking) as
         | (new (options?: BergamotInitOptions) => TranslatorBackingLike)
         | undefined;
       const backing = TranslatorBackingCtor
@@ -222,15 +223,18 @@ export class BergamotTextTranslator implements ITextTranslator {
         });
       };
 
-      // Some versions of the library have differing constructor typings; cast to any
-      const translator = new (LatencyOptimisedTranslator as any)(
+      // Some versions of the library have differing constructor typings; coerce to a compatible ctor type
+      const TranslatorCtor = LatencyOptimisedTranslator as unknown as (
+        new (options?: BergamotInitOptions, backing?: TranslatorBackingLike) => LatencyOptimisedTranslatorLike
+      );
+      const translator = new TranslatorCtor(
         {
           workerUrl: workerUrl,
           downloadTimeout: 60000,
           registryUrl,
         } as BergamotInitOptions,
         backing
-      ) as unknown as LatencyOptimisedTranslatorLike;
+      );
 
       // Wait for the worker to be initialized
       this.initializing = translator.worker.then(() => translator);

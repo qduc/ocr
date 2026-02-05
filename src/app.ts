@@ -686,11 +686,12 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   };
 
   const updateTranslateFromDefault = (): void => {
+    if (!translateFrom) return;
     const engineId = activeEngineId ?? selectedEngineId;
     const ocrLanguage =
       engineId && supportsLanguageSelection(engineId) ? getSelectedLanguage(engineId) : 'eng';
-    const mapped = engineId ? mapOcrLanguageToBergamot(engineId, ocrLanguage) : null;
-    const next = mapped ?? DEFAULT_TRANSLATION_TO;
+    const mapped: string | null = engineId ? mapOcrLanguageToBergamot(engineId, ocrLanguage) : null;
+    const next: string = mapped ?? DEFAULT_TRANSLATION_TO;
     if (translateFrom.value !== next && BERGAMOT_LANGUAGES[next]) {
       translateFrom.value = next;
       setStoredTranslationLanguage('from', translateFrom.value);
@@ -1197,7 +1198,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const scaleX = originalImageData.width / lastProcessedWidth;
       const scaleY = originalImageData.height / lastProcessedHeight;
 
-      await renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY);
+      renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY);
 
       setTranslateStatus('Exporting...');
       const blob = await new Promise<Blob>((resolve, reject) => {
