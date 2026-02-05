@@ -2,14 +2,14 @@ import { OCRItem } from '../types/ocr-engine';
 
 /**
  * Thresholds for grouping OCR items into lines and paragraphs.
- * 
+ *
  * LINE_CENTER_THRESHOLD: Max vertical distance between centers as a fraction of line height.
  * LINE_OVERLAP_THRESHOLD: Min vertical overlap as a fraction of item height.
  * PARAGRAPH_GAP_THRESHOLD: Max vertical gap between lines as a fraction of average line height.
  */
 const LINE_CENTER_THRESHOLD = 0.4;
 const LINE_OVERLAP_THRESHOLD = 0.5;
-const PARAGRAPH_GAP_THRESHOLD = 1.5;
+const PARAGRAPH_GAP_THRESHOLD = 0.7;
 
 /**
  * Groups OCR items into paragraphs and returns a single formatted string.
