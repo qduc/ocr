@@ -2,7 +2,7 @@ import type { OCRResult } from '@/types/ocr-engine';
 import type { ITextTranslator } from '@/types/translation';
 import type { ImageProcessor } from '@/utils/image-processor';
 import { logError } from '@/utils/error-handling';
-import { groupOcrItemsIntoParagraphs } from '@/utils/paragraph-grouping';
+import { groupOcrItemsIntoWriteBackLines } from '@/utils/paragraph-grouping';
 import { renderTranslationToImage } from '@/utils/image-writeback';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
@@ -257,7 +257,7 @@ export const createTranslationController = (
     setTranslateError();
     try {
       setTranslateStatus('Preparing regions...');
-      const regions = groupOcrItemsIntoParagraphs(items);
+      const regions = groupOcrItemsIntoWriteBackLines(items);
       const translator = await getTranslator();
 
       const translatedRegions = [];

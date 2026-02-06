@@ -1,4 +1,4 @@
-import { OCRParagraphRegion } from './paragraph-grouping';
+import { OCRParagraphRegion, OCRWriteBackLineRegion } from './paragraph-grouping';
 
 export interface WriteBackOptions {
   fontSizeFactor?: number; // scale factor for font size relative to box height (fallback if original size cannot be detected)
@@ -24,13 +24,15 @@ export interface WriteBackRegionMetrics {
   textBaseline: CanvasTextBaseline;
 }
 
+type WriteBackRegion = (OCRParagraphRegion | OCRWriteBackLineRegion) & { translatedText: string };
+
 /**
  * Renders translated text onto a canvas containing the original image.
  * Uses a solid background fill sampled from the original pixels.
  */
 export function renderTranslationToImage(
   canvas: HTMLCanvasElement,
-  regions: Array<OCRParagraphRegion & { translatedText: string }>,
+  regions: WriteBackRegion[],
   scaleX: number,
   scaleY: number,
   options: WriteBackOptions = {}
@@ -68,10 +70,14 @@ export function renderTranslationToImage(
     ctx.globalAlpha = 1.0;
 
     // 3. Draw translated text
+    const containerBox = 'containerBox' in region ? region.containerBox : region.boundingBox;
+    const cx = containerBox.x * scaleX;
+    const cw = containerBox.width * scaleX;
+    const textAlign = inferTextAlign(region.boundingBox, containerBox);
     const textColor = getContrastColor(bgColor);
     ctx.fillStyle = textColor;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = 'alphabetic';
 
     // Estimate original font size based on median item height
     // We use this as a hard upper bound so the translation doesn't look bigger than original text
@@ -80,7 +86,7 @@ export function renderTranslationToImage(
     const baseFontSize = options.maxFontSize ?? Math.max(minFontSize, Math.round(medianItemHeight));
 
     // Determine the best font size that fits the box (binary search fit)
-    const maxWidth = sw * (1 - paddingFactor);
+    const maxWidth = cw * (1 - paddingFactor);
     const maxHeight = sh * (1 - paddingFactor);
     const {
       fontSize: fittingFontSize,
@@ -98,11 +104,15 @@ export function renderTranslationToImage(
     );
 
     ctx.font = `${fittingFontSize}px ${fontFamily}`;
-    const totalTextHeight = fittingLines.length * fittingFontSize * lineSpacing;
-    const startY = sy + sh / 2 - (totalTextHeight - fittingFontSize * lineSpacing) / 2;
+    const fittedLineMetrics = getLineMetrics(ctx, fittingFontSize, lineSpacing);
+    const totalTextHeight = getTextBlockHeight(fittingLines.length, fittedLineMetrics);
+    const topInset = (sh - totalTextHeight) / 2;
+    const firstBaselineY = sy + topInset + fittedLineMetrics.ascent;
+    const horizontalPadding = cw * paddingFactor * 0.5;
+    const drawX = getAlignedX(textAlign, cx, cw, horizontalPadding);
 
     fittingLines.forEach((line, i) => {
-      ctx.fillText(line, sx + sw / 2, startY + i * fittingFontSize * lineSpacing);
+      ctx.fillText(line, drawX, firstBaselineY + i * fittedLineMetrics.advance);
     });
 
     options.onRegionRendered?.({
@@ -114,8 +124,8 @@ export function renderTranslationToImage(
       chosenFontSize: fittingFontSize,
       lineCount: fittingLines.length,
       overflow,
-      textAlign: 'center',
-      textBaseline: 'middle',
+      textAlign,
+      textBaseline: 'alphabetic',
     });
   }
 }
@@ -140,7 +150,8 @@ function fitTextToBox(
 
   // If even the min font size doesn't fit height-wise, we just return it and let it overflow or be cut
   const minLines = bestLines;
-  const minHeight = minLines.length * minFontSize * lineSpacing;
+  const minMetrics = getLineMetrics(ctx, minFontSize, lineSpacing);
+  const minHeight = getTextBlockHeight(minLines.length, minMetrics);
   let overflow = minHeight > maxHeight;
   if (minHeight > maxHeight && minFontSize === low) {
     // Already set to best possible
@@ -154,9 +165,11 @@ function fitTextToBox(
     const mid = (low + high) / 2;
     ctx.font = `${mid}px ${fontFamily}`;
     const lines = wrapText(ctx, text, maxWidth, ctx.font);
-    const totalHeight = lines.length * mid * lineSpacing;
+    const lineMetrics = getLineMetrics(ctx, mid, lineSpacing);
+    const totalHeight = getTextBlockHeight(lines.length, lineMetrics);
+    const maxLineWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
 
-    if (totalHeight <= maxHeight) {
+    if (totalHeight <= maxHeight && maxLineWidth <= maxWidth) {
       bestFontSize = mid;
       bestLines = lines;
       low = mid;
@@ -167,10 +180,72 @@ function fitTextToBox(
 
   const fittedFontSize = Math.floor(bestFontSize);
   ctx.font = `${fittedFontSize}px ${fontFamily}`;
+  const fittedMetrics = getLineMetrics(ctx, fittedFontSize, lineSpacing);
+  const totalHeight = getTextBlockHeight(bestLines.length, fittedMetrics);
   const maxLineWidth = bestLines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
-  overflow = overflow || maxLineWidth > maxWidth;
+  overflow = overflow || maxLineWidth > maxWidth || totalHeight > maxHeight;
 
   return { fontSize: fittedFontSize, lines: bestLines, overflow };
+}
+
+function inferTextAlign(
+  lineBox: OCRParagraphRegion['boundingBox'],
+  containerBox: OCRParagraphRegion['boundingBox']
+): CanvasTextAlign {
+  const leftMargin = lineBox.x - containerBox.x;
+  const rightMargin =
+    containerBox.x + containerBox.width - (lineBox.x + lineBox.width);
+  const diff = Math.abs(leftMargin - rightMargin);
+  const tolerance = containerBox.width * 0.12;
+
+  if (diff <= tolerance) {
+    return 'center';
+  }
+  if (rightMargin < leftMargin) {
+    return 'right';
+  }
+  return 'left';
+}
+
+function getAlignedX(
+  textAlign: CanvasTextAlign,
+  x: number,
+  width: number,
+  horizontalPadding: number
+): number {
+  if (textAlign === 'right' || textAlign === 'end') {
+    return x + width - horizontalPadding;
+  }
+  if (textAlign === 'center') {
+    return x + width / 2;
+  }
+  return x + horizontalPadding;
+}
+
+function getLineMetrics(
+  ctx: CanvasRenderingContext2D,
+  fontSize: number,
+  lineSpacing: number
+): { ascent: number; descent: number; advance: number } {
+  const sample = ctx.measureText('Hg');
+  const ascent = sample.actualBoundingBoxAscent || fontSize * 0.8;
+  const descent = sample.actualBoundingBoxDescent || fontSize * 0.2;
+  const rawLineHeight = Math.max(1, ascent + descent);
+  return {
+    ascent,
+    descent,
+    advance: rawLineHeight * lineSpacing,
+  };
+}
+
+function getTextBlockHeight(
+  lineCount: number,
+  lineMetrics: { ascent: number; descent: number; advance: number }
+): number {
+  if (lineCount <= 0) {
+    return 0;
+  }
+  return lineMetrics.ascent + lineMetrics.descent + (lineCount - 1) * lineMetrics.advance;
 }
 
 function getMedian(values: number[]): number {

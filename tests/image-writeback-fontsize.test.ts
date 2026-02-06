@@ -8,14 +8,14 @@ describe('renderTranslationToImage Font Selection', () => {
     rgb: [number, number, number] = [255, 255, 255]
   ): {
     ctx: CanvasRenderingContext2D;
-    fillTextMock: ReturnType<typeof vi.fn>;
+    fillTextMock: ReturnType<typeof vi.fn<(text: string, x: number, y: number) => void>>;
   } => {
     let currentFont = '10px sans-serif';
     let currentFillStyle = 'black';
     let currentTextAlign: CanvasTextAlign = 'start';
     let currentTextBaseline: CanvasTextBaseline = 'alphabetic';
     let currentGlobalAlpha = 1;
-    const fillTextMock = vi.fn();
+    const fillTextMock = vi.fn<(text: string, x: number, y: number) => void>();
     const ctx = {
       canvas: { width: 1000, height: 1000 },
       getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([rgb[0], rgb[1], rgb[2], 255]) })),
@@ -149,7 +149,57 @@ describe('renderTranslationToImage Font Selection', () => {
     renderTranslationToImage(canvas, regions, 1, 1);
 
     expect(ctx.textAlign).toBe('center');
-    expect(ctx.textBaseline).toBe('middle');
+    expect(ctx.textBaseline).toBe('alphabetic');
+  });
+
+  it('infers left/center/right alignment from line box inside container box', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+
+    const leftRegion: Array<OCRParagraphRegion & {
+      translatedText: string;
+      containerBox: OCRParagraphRegion['boundingBox'];
+    }> = [
+      {
+        text: 'left source',
+        translatedText: 'left translated',
+        boundingBox: { x: 20, y: 10, width: 80, height: 20 },
+        containerBox: { x: 0, y: 0, width: 200, height: 40 },
+        items: [{ text: 'a', confidence: 1, boundingBox: { x: 20, y: 10, width: 20, height: 20 } }],
+      },
+    ];
+    renderTranslationToImage(canvas, leftRegion, 1, 1);
+    expect(ctx.textAlign).toBe('left');
+
+    const centerRegion: Array<OCRParagraphRegion & {
+      translatedText: string;
+      containerBox: OCRParagraphRegion['boundingBox'];
+    }> = [
+      {
+        text: 'center source',
+        translatedText: 'center translated',
+        boundingBox: { x: 70, y: 10, width: 60, height: 20 },
+        containerBox: { x: 0, y: 0, width: 200, height: 40 },
+        items: [{ text: 'a', confidence: 1, boundingBox: { x: 70, y: 10, width: 20, height: 20 } }],
+      },
+    ];
+    renderTranslationToImage(canvas, centerRegion, 1, 1);
+    expect(ctx.textAlign).toBe('center');
+
+    const rightRegion: Array<OCRParagraphRegion & {
+      translatedText: string;
+      containerBox: OCRParagraphRegion['boundingBox'];
+    }> = [
+      {
+        text: 'right source',
+        translatedText: 'right translated',
+        boundingBox: { x: 120, y: 10, width: 60, height: 20 },
+        containerBox: { x: 0, y: 0, width: 200, height: 40 },
+        items: [{ text: 'a', confidence: 1, boundingBox: { x: 120, y: 10, width: 20, height: 20 } }],
+      },
+    ];
+    renderTranslationToImage(canvas, rightRegion, 1, 1);
+    expect(ctx.textAlign).toBe('right');
   });
 
   it('chooses contrasting text color for dark and bright backgrounds', () => {
@@ -197,6 +247,62 @@ describe('renderTranslationToImage Font Selection', () => {
     expect(captured?.lineCount).toBeGreaterThan(0);
     expect(typeof captured?.overflow).toBe('boolean');
     expect(captured?.textAlign).toBe('center');
-    expect(captured?.textBaseline).toBe('middle');
+    expect(captured?.textBaseline).toBe('alphabetic');
+  });
+
+  it('keeps font-fit results deterministic for identical inputs', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'stable',
+        translatedText: 'consistent wrapping behavior for repeated calls',
+        boundingBox: { x: 0, y: 0, width: 140, height: 36 },
+        items: [{ text: 's', confidence: 1, boundingBox: { x: 0, y: 0, width: 10, height: 20 } }],
+      },
+    ];
+
+    let first: { fontSize: number; lineCount: number } | undefined;
+    let second: { fontSize: number; lineCount: number } | undefined;
+    renderTranslationToImage(canvas, regions, 1, 1, {
+      onRegionRendered: (metrics): void => {
+        first = { fontSize: metrics.chosenFontSize, lineCount: metrics.lineCount };
+      },
+    });
+    renderTranslationToImage(canvas, regions, 1, 1, {
+      onRegionRendered: (metrics): void => {
+        second = { fontSize: metrics.chosenFontSize, lineCount: metrics.lineCount };
+      },
+    });
+
+    expect(first).toEqual(second);
+  });
+
+  it('places wrapped lines with stable vertical advance', () => {
+    const { ctx, fillTextMock } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'multi',
+        translatedText: 'one two three four five six seven eight nine ten',
+        boundingBox: { x: 0, y: 0, width: 120, height: 90 },
+        items: [{ text: 'm', confidence: 1, boundingBox: { x: 0, y: 0, width: 10, height: 24 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    const yValues: number[] = [];
+    for (const call of fillTextMock.mock.calls as Array<[string, number, number]>) {
+      yValues.push(call[2]);
+    }
+    expect(yValues.length).toBeGreaterThan(1);
+
+    const advances: number[] = [];
+    for (let i = 1; i < yValues.length; i++) {
+      advances.push(yValues[i] - yValues[i - 1]);
+    }
+    const rounded = advances.map((v) => Math.round(v * 1000) / 1000);
+    expect(new Set(rounded).size).toBe(1);
   });
 });

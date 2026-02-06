@@ -7,7 +7,7 @@ Improve translated image quality by replacing blocky erase/write behavior with l
 
 ## Progress Snapshot
 - Overall status: `in progress`
-- Current phase: `Phase 1 (ready)`
+- Current phase: `Phase 2 (ready)`
 - Last updated: `2026-02-06`
 
 ## Phase 0: Baseline and Safety Net
@@ -45,23 +45,23 @@ Status: `[x]`
 ---
 
 ## Phase 1: Layout-Aware Rendering (Quick Win)
-Status: `[ ]`
+Status: `[x]`
 
 ### Scope
 - Stop center-block paragraph drawing.
 - Render using line-level geometry and baseline alignment.
 
 ### Tasks
-- [ ] Introduce a line-level region model for write-back input.
-- [ ] Render translated text with:
-  - [ ] left/right alignment inferred from source geometry
-  - [ ] `alphabetic` baseline placement
-  - [ ] improved vertical spacing based on text metrics
-- [ ] Keep backward compatibility for existing region input shape.
-- [ ] Add tests for:
-  - [ ] preserved alignment
-  - [ ] deterministic font-fit decisions
-  - [ ] multi-line placement stability
+- [x] Introduce a line-level region model for write-back input.
+- [x] Render translated text with:
+  - [x] left/right alignment inferred from source geometry
+  - [x] `alphabetic` baseline placement
+  - [x] improved vertical spacing based on text metrics
+- [x] Keep backward compatibility for existing region input shape.
+- [x] Add tests for:
+  - [x] preserved alignment
+  - [x] deterministic font-fit decisions
+  - [x] multi-line placement stability
 
 ### Files
 - `src/utils/paragraph-grouping.ts`
@@ -71,8 +71,8 @@ Status: `[ ]`
 - `tests/writeback.test.ts`
 
 ### Exit Criteria
-- [ ] Translated text visually follows original reading flow better than baseline.
-- [ ] All tests pass (`npm test`, `npm run typecheck`, `npm run lint`).
+- [x] Translated text visually follows original reading flow better than baseline.
+- [x] All tests pass (`npm test`, `npm run typecheck`, `npm run lint`).
 
 ---
 
@@ -203,3 +203,4 @@ Run these before marking a phase complete:
 - `2026-02-06`: Initial phased plan created.
 - `2026-02-06`: Completed Phase 0 with new write-back metrics hook and baseline tests for wrapping, alignment, and color behavior.
 - `2026-02-06`: Validation run completed (`npm test`, `npm run typecheck`, `npm run lint`), with only pre-existing lint warnings in `src/utils/model-cache.ts`.
+- `2026-02-06`: Completed Phase 1 with line-level write-back regions, geometry-inferred horizontal alignment, and `alphabetic` baseline rendering.

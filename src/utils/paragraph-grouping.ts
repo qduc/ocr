@@ -121,6 +121,15 @@ export interface OCRLine {
 
 export type OCRParagraphRegion = OCRLine;
 
+export interface OCRWriteBackLineRegion extends OCRLine {
+  containerBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
 /**
  * Groups OCR items into lines and computes a union bounding box for each line.
  * Useful for region-based translation and write-back.
@@ -188,30 +197,35 @@ export function groupOcrItemsIntoParagraphs(items: OCRItem[]): OCRParagraphRegio
   const lines = groupOcrItemsIntoLines(items);
   if (lines.length === 0) return [];
 
-  // Estimate average line height for thresholding
-  const lineHeights = lines.map((l) => l.boundingBox.height);
-  const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
-
   const paragraphs: OCRParagraphRegion[] = [];
-  // Start with the first line to avoid index-undefined checks inside loop
-  let currentLines: OCRLine[] = [lines[0]!];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i]!;
-    const prevLine = lines[i - 1]!;
-    const gap = line.boundingBox.y - (prevLine.boundingBox.y + prevLine.boundingBox.height);
-
-    // If gap is more than threshold * average line height, start new paragraph
-    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
-      paragraphs.push(mergeLinesToRegion(currentLines));
-      currentLines = [line];
-    } else {
-      currentLines.push(line);
-    }
+  const paragraphLineGroups = groupLinesIntoParagraphs(lines);
+  for (const paragraphLines of paragraphLineGroups) {
+    paragraphs.push(mergeLinesToRegion(paragraphLines));
   }
-  paragraphs.push(mergeLinesToRegion(currentLines));
 
   return paragraphs;
+}
+
+/**
+ * Groups OCR items into line-level write-back regions and keeps the parent
+ * paragraph box so alignment can be inferred from source geometry.
+ */
+export function groupOcrItemsIntoWriteBackLines(items: OCRItem[]): OCRWriteBackLineRegion[] {
+  const lines = groupOcrItemsIntoLines(items);
+  if (lines.length === 0) return [];
+
+  const regions: OCRWriteBackLineRegion[] = [];
+  const paragraphLineGroups = groupLinesIntoParagraphs(lines);
+  for (const paragraphLines of paragraphLineGroups) {
+    const paragraphRegion = mergeLinesToRegion(paragraphLines);
+    for (const line of paragraphLines) {
+      regions.push({
+        ...line,
+        containerBox: paragraphRegion.boundingBox,
+      });
+    }
+  }
+  return regions;
 }
 
 /**
@@ -236,6 +250,32 @@ function mergeLinesToRegion(lines: OCRLine[]): OCRParagraphRegion {
     },
     items,
   };
+}
+
+function groupLinesIntoParagraphs(lines: OCRLine[]): OCRLine[][] {
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const lineHeights = lines.map((l) => l.boundingBox.height);
+  const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+  const paragraphs: OCRLine[][] = [];
+  let currentLines: OCRLine[] = [lines[0]!];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    const prevLine = lines[i - 1]!;
+    const gap = line.boundingBox.y - (prevLine.boundingBox.y + prevLine.boundingBox.height);
+
+    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
+      paragraphs.push(currentLines);
+      currentLines = [line];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  paragraphs.push(currentLines);
+  return paragraphs;
 }
 
 /**
@@ -264,4 +304,3 @@ function isInSameLine(item1: OCRItem, item2: OCRItem): boolean {
 
   return overlap > minH * LINE_OVERLAP_THRESHOLD;
 }
-
