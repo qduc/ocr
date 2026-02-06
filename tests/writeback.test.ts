@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   groupOcrItemsIntoLines,
   groupOcrItemsIntoParagraphs,
+  groupOcrItemsIntoWriteBackParagraphs,
   groupOcrItemsIntoWriteBackLines,
 } from '../src/utils/paragraph-grouping';
 import { OCRItem } from '../src/types/ocr-engine';
@@ -81,5 +82,25 @@ describe('groupOcrItemsIntoWriteBackLines', () => {
 
   it('handles empty items', () => {
     expect(groupOcrItemsIntoWriteBackLines([])).toEqual([]);
+  });
+});
+
+describe('groupOcrItemsIntoWriteBackParagraphs', () => {
+  it('keeps paragraph-level text while preserving child line geometry', () => {
+    const items: OCRItem[] = [
+      { text: 'Line 1', confidence: 0.9, boundingBox: { x: 20, y: 10, width: 100, height: 20 } },
+      { text: 'Line 2', confidence: 0.9, boundingBox: { x: 30, y: 38, width: 90, height: 20 } },
+      { text: 'Next', confidence: 0.9, boundingBox: { x: 10, y: 110, width: 50, height: 20 } },
+    ];
+
+    const paragraphs = groupOcrItemsIntoWriteBackParagraphs(items);
+
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[0].text).toBe('Line 1 Line 2');
+    expect(paragraphs[0].lines).toHaveLength(2);
+    expect(paragraphs[0].lines[0].containerBox).toEqual({ x: 20, y: 10, width: 100, height: 48 });
+    expect(paragraphs[0].lines[1].containerBox).toEqual({ x: 20, y: 10, width: 100, height: 48 });
+    expect(paragraphs[1].text).toBe('Next');
+    expect(paragraphs[1].lines).toHaveLength(1);
   });
 });

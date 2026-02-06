@@ -2,7 +2,10 @@ import type { OCRResult } from '@/types/ocr-engine';
 import type { ITextTranslator } from '@/types/translation';
 import type { ImageProcessor } from '@/utils/image-processor';
 import { logError } from '@/utils/error-handling';
-import { groupOcrItemsIntoWriteBackLines } from '@/utils/paragraph-grouping';
+import {
+  groupOcrItemsIntoWriteBackParagraphs,
+  type OCRWriteBackLineRegion,
+} from '@/utils/paragraph-grouping';
 import { renderTranslationToImage, type WriteBackOptions } from '@/utils/image-writeback';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
@@ -283,19 +286,27 @@ export const createTranslationController = (
     setTranslateError();
     try {
       setTranslateStatus('Preparing regions...');
-      const regions = groupOcrItemsIntoWriteBackLines(items);
+      const paragraphs = groupOcrItemsIntoWriteBackParagraphs(items);
       const translator = await getTranslator();
 
-      const translatedRegions = [];
-      for (let i = 0; i < regions.length; i++) {
-        setTranslateStatus(`Translating region ${i + 1}/${regions.length}...`);
-        const region = regions[i]!;
+      const translatedRegions: Array<OCRWriteBackLineRegion & { translatedText: string }> = [];
+      for (let i = 0; i < paragraphs.length; i++) {
+        setTranslateStatus(`Translating paragraph ${i + 1}/${paragraphs.length}...`);
+        const paragraph = paragraphs[i]!;
         const response = await translator.translate({
           from: translateFrom.value,
           to: translateTo.value,
-          text: region.text,
+          text: paragraph.text,
         });
-        translatedRegions.push({ ...region, translatedText: response.text });
+
+        const lineTexts = distributeParagraphTextToLines(response.text, paragraph.lines);
+        for (let lineIndex = 0; lineIndex < paragraph.lines.length; lineIndex++) {
+          const line = paragraph.lines[lineIndex]!;
+          translatedRegions.push({
+            ...line,
+            translatedText: lineTexts[lineIndex] ?? '',
+          });
+        }
       }
 
       setTranslateStatus('Rendering translated image...');
@@ -411,3 +422,59 @@ export const createTranslationController = (
     onOcrUpdated,
   };
 };
+
+function distributeParagraphTextToLines(
+  text: string,
+  lines: OCRWriteBackLineRegion[]
+): string[] {
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return lines.map(() => '');
+  }
+
+  const hasWhitespace = /\s/.test(trimmed);
+  const units = hasWhitespace
+    ? trimmed.split(/\s+/).filter((token) => token.length > 0)
+    : Array.from(trimmed);
+
+  if (units.length === 0) {
+    return lines.map(() => '');
+  }
+
+  const totalWidth = lines.reduce((sum, line) => sum + Math.max(1, line.boundingBox.width), 0);
+  const targetUnitCounts = lines.map((line, index) => {
+    if (index === lines.length - 1) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const proportion = Math.max(1, line.boundingBox.width) / totalWidth;
+    return Math.max(1, Math.round(proportion * units.length));
+  });
+
+  const result = lines.map(() => '');
+  let cursor = 0;
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const remainingLines = lines.length - lineIndex;
+    const remainingUnits = units.length - cursor;
+    if (remainingUnits <= 0) {
+      result[lineIndex] = '';
+      continue;
+    }
+
+    const maxForLine = remainingUnits - (remainingLines - 1);
+    const target = targetUnitCounts[lineIndex] ?? maxForLine;
+    const take = lineIndex === lines.length - 1
+      ? remainingUnits
+      : Math.max(1, Math.min(maxForLine, target));
+
+    const segment = units.slice(cursor, cursor + take);
+    result[lineIndex] = hasWhitespace ? segment.join(' ') : segment.join('');
+    cursor += take;
+  }
+
+  return result;
+}

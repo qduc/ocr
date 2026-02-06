@@ -130,6 +130,10 @@ export interface OCRWriteBackLineRegion extends OCRLine {
   };
 }
 
+export interface OCRWriteBackParagraphRegion extends OCRParagraphRegion {
+  lines: OCRWriteBackLineRegion[];
+}
+
 /**
  * Groups OCR items into lines and computes a union bounding box for each line.
  * Useful for region-based translation and write-back.
@@ -211,19 +215,29 @@ export function groupOcrItemsIntoParagraphs(items: OCRItem[]): OCRParagraphRegio
  * paragraph box so alignment can be inferred from source geometry.
  */
 export function groupOcrItemsIntoWriteBackLines(items: OCRItem[]): OCRWriteBackLineRegion[] {
+  const paragraphs = groupOcrItemsIntoWriteBackParagraphs(items);
+  return paragraphs.flatMap((paragraph) => paragraph.lines);
+}
+
+export function groupOcrItemsIntoWriteBackParagraphs(items: OCRItem[]): OCRWriteBackParagraphRegion[] {
   const lines = groupOcrItemsIntoLines(items);
   if (lines.length === 0) return [];
 
-  const regions: OCRWriteBackLineRegion[] = [];
+  const regions: OCRWriteBackParagraphRegion[] = [];
   const paragraphLineGroups = groupLinesIntoParagraphs(lines);
   for (const paragraphLines of paragraphLineGroups) {
     const paragraphRegion = mergeLinesToRegion(paragraphLines);
+    const lineRegions: OCRWriteBackLineRegion[] = [];
     for (const line of paragraphLines) {
-      regions.push({
+      lineRegions.push({
         ...line,
         containerBox: paragraphRegion.boundingBox,
       });
     }
+    regions.push({
+      ...paragraphRegion,
+      lines: lineRegions,
+    });
   }
   return regions;
 }

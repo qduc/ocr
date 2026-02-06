@@ -131,4 +131,54 @@ describe('Write-back UI', () => {
     expect(translatedContainer.classList.contains('hidden')).toBe(false);
     expect(translatedPreview.src).toBe('blob:test');
   });
+
+  it('translates once per paragraph when paragraph spans multiple source lines', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.querySelector<HTMLElement>('#app');
+    if (!root) throw new Error('Missing root');
+
+    const translateSpy = vi.fn((req: { text: string }) => Promise.resolve({ text: 'translated:' + req.text }));
+    const translator: ITextTranslator = {
+      translate: translateSpy,
+      destroy: vi.fn(),
+    };
+
+    const mockOcrResult: OCRResult = {
+      text: 'line1 line2',
+      items: [
+        { text: 'Line', confidence: 1, boundingBox: { x: 10, y: 10, width: 30, height: 20 } },
+        { text: 'one', confidence: 1, boundingBox: { x: 45, y: 10, width: 30, height: 20 } },
+        { text: 'Line', confidence: 1, boundingBox: { x: 10, y: 34, width: 30, height: 20 } },
+        { text: 'two', confidence: 1, boundingBox: { x: 45, y: 34, width: 30, height: 20 } },
+      ],
+    };
+
+    const ocrManager = {
+      setEngine: vi.fn((): Promise<void> => Promise.resolve()),
+      run: vi.fn((): Promise<OCRResult> => Promise.resolve(mockOcrResult)),
+    } as unknown as OCRManager;
+
+    const app = initApp({
+      root,
+      featureDetector: createSupportedDetector(),
+      imageProcessor: createImageProcessorStub(),
+      ocrManager,
+      registerEngines: (factory) => registerTestEngine(factory),
+      createTranslator: () => Promise.resolve(translator),
+    });
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    Object.defineProperty(app.elements.fileInput, 'files', { value: [file] });
+    app.elements.fileInput.dispatchEvent(new Event('change'));
+    await app.runOcr();
+    await flushPromises();
+
+    const writebackButton = root.querySelector<HTMLButtonElement>('#translate-writeback')!;
+    writebackButton.click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(translateSpy).toHaveBeenCalledTimes(1);
+    expect(translateSpy).toHaveBeenCalledWith(expect.objectContaining({ text: 'Line one Line two' }));
+  });
 });
