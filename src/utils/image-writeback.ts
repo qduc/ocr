@@ -1,4 +1,4 @@
-import { OCRParagraphRegion, OCRWriteBackLineRegion } from './paragraph-grouping';
+import type { OCRParagraphRegion, OCRWriteBackLineRegion } from './paragraph-grouping';
 
 export interface WriteBackOptions {
   fontSizeFactor?: number; // scale factor for font size relative to box height (fallback if original size cannot be detected)
@@ -22,6 +22,7 @@ export interface WriteBackRegionMetrics {
   overflow: boolean;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
+  rotationDegrees: number;
 }
 
 type WriteBackRegion = (OCRParagraphRegion | OCRWriteBackLineRegion) & { translatedText: string };
@@ -110,10 +111,23 @@ export function renderTranslationToImage(
     const firstBaselineY = sy + topInset + fittedLineMetrics.ascent;
     const horizontalPadding = cw * paddingFactor * 0.5;
     const drawX = getAlignedX(textAlign, cx, cw, horizontalPadding);
-
-    fittingLines.forEach((line, i) => {
-      ctx.fillText(line, drawX, firstBaselineY + i * fittedLineMetrics.advance);
-    });
+    const rotationDegrees = inferRegionRotationDegrees(region.items);
+    if (Math.abs(rotationDegrees) > 0.01) {
+      const pivotX = sx + sw / 2;
+      const pivotY = sy + sh / 2;
+      ctx.save();
+      ctx.translate(pivotX, pivotY);
+      ctx.rotate((rotationDegrees * Math.PI) / 180);
+      fittingLines.forEach((line, i) => {
+        const lineY = firstBaselineY + i * fittedLineMetrics.advance;
+        ctx.fillText(line, drawX - pivotX, lineY - pivotY);
+      });
+      ctx.restore();
+    } else {
+      fittingLines.forEach((line, i) => {
+        ctx.fillText(line, drawX, firstBaselineY + i * fittedLineMetrics.advance);
+      });
+    }
 
     options.onRegionRendered?.({
       regionIndex,
@@ -126,6 +140,7 @@ export function renderTranslationToImage(
       overflow,
       textAlign,
       textBaseline: 'alphabetic',
+      rotationDegrees,
     });
   }
 }
@@ -246,6 +261,38 @@ function getTextBlockHeight(
     return 0;
   }
   return lineMetrics.ascent + lineMetrics.descent + (lineCount - 1) * lineMetrics.advance;
+}
+
+function inferRegionRotationDegrees(items: OCRParagraphRegion['items']): number {
+  const angles: number[] = [];
+  for (const item of items) {
+    if (typeof item.angle === 'number' && Number.isFinite(item.angle)) {
+      angles.push(normalizeAngle(item.angle));
+      continue;
+    }
+
+    if (item.quad && item.quad.length === 4) {
+      const [p0, p1] = item.quad;
+      const radians = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
+      angles.push(normalizeAngle((radians * 180) / Math.PI));
+    }
+  }
+
+  if (angles.length === 0) {
+    return 0;
+  }
+  return getMedian(angles);
+}
+
+function normalizeAngle(angle: number): number {
+  let normalized = angle;
+  while (normalized > 90) {
+    normalized -= 180;
+  }
+  while (normalized < -90) {
+    normalized += 180;
+  }
+  return normalized;
 }
 
 function getMedian(values: number[]): number {

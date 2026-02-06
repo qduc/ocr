@@ -7,7 +7,7 @@ Improve translated image quality by replacing blocky erase/write behavior with l
 
 ## Progress Snapshot
 - Overall status: `in progress`
-- Current phase: `Phase 2 (ready)`
+- Current phase: `Phase 3 (ready)`
 - Last updated: `2026-02-06`
 
 ## Phase 0: Baseline and Safety Net
@@ -77,21 +77,21 @@ Status: `[x]`
 ---
 
 ## Phase 2: Geometry Preservation (Rotation/Skew)
-Status: `[ ]`
+Status: `[x]`
 
 ### Scope
 - Preserve oriented OCR geometry from engines into the write-back pipeline.
 
 ### Tasks
-- [ ] Extend OCR types with optional oriented geometry:
-  - [ ] `quad?: [number, number][]` (4 points)
-  - [ ] `angle?: number`
-- [ ] Preserve geometry in engine mapping layers where available.
-- [ ] Update write-back renderer to rotate text using canvas transforms when angle/quad exists.
-- [ ] Add tests for:
-  - [ ] type compatibility
-  - [ ] transform invocation behavior
-  - [ ] fallback to axis-aligned rendering when geometry absent
+- [x] Extend OCR types with optional oriented geometry:
+  - [x] `quad?: [number, number][]` (4 points)
+  - [x] `angle?: number`
+- [x] Preserve geometry in engine mapping layers where available.
+- [x] Update write-back renderer to rotate text using canvas transforms when angle/quad exists.
+- [x] Add tests for:
+  - [x] type compatibility
+  - [x] transform invocation behavior
+  - [x] fallback to axis-aligned rendering when geometry absent
 
 ### Files
 - `src/types/ocr-engine.ts`
@@ -102,8 +102,8 @@ Status: `[ ]`
 - `tests/*writeback*.test.ts`
 
 ### Exit Criteria
-- [ ] Rotated/slanted source text no longer gets flattened into horizontal overlays.
-- [ ] Existing engines still compile and pass tests.
+- [x] Rotated/slanted source text no longer gets flattened into horizontal overlays.
+- [x] Existing engines still compile and pass tests.
 
 ---
 
@@ -204,3 +204,4 @@ Run these before marking a phase complete:
 - `2026-02-06`: Completed Phase 0 with new write-back metrics hook and baseline tests for wrapping, alignment, and color behavior.
 - `2026-02-06`: Validation run completed (`npm test`, `npm run typecheck`, `npm run lint`), with only pre-existing lint warnings in `src/utils/model-cache.ts`.
 - `2026-02-06`: Completed Phase 1 with line-level write-back regions, geometry-inferred horizontal alignment, and `alphabetic` baseline rendering.
+- `2026-02-06`: Completed Phase 2 by preserving OCR quad/angle metadata and applying canvas rotation during write-back when orientation is available.

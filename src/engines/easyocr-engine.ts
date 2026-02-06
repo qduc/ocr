@@ -186,6 +186,15 @@ const mapEasyOcrResultItem = (item: EasyOcrResult): NonNullable<OCRResult['items
   return {
     text: item.text,
     confidence: item.confidence,
+    quad: [
+      [item.box[0][0], item.box[0][1]],
+      [item.box[1][0], item.box[1][1]],
+      [item.box[2][0], item.box[2][1]],
+      [item.box[3][0], item.box[3][1]],
+    ],
+    angle:
+      (Math.atan2(item.box[1][1] - item.box[0][1], item.box[1][0] - item.box[0][0]) * 180) /
+      Math.PI,
     boundingBox: {
       x: minX,
       y: minY,

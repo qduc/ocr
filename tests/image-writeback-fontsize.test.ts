@@ -9,6 +9,7 @@ describe('renderTranslationToImage Font Selection', () => {
   ): {
     ctx: CanvasRenderingContext2D;
     fillTextMock: ReturnType<typeof vi.fn<(text: string, x: number, y: number) => void>>;
+    rotateMock: ReturnType<typeof vi.fn<(angle: number) => void>>;
   } => {
     let currentFont = '10px sans-serif';
     let currentFillStyle = 'black';
@@ -16,11 +17,16 @@ describe('renderTranslationToImage Font Selection', () => {
     let currentTextBaseline: CanvasTextBaseline = 'alphabetic';
     let currentGlobalAlpha = 1;
     const fillTextMock = vi.fn<(text: string, x: number, y: number) => void>();
+    const rotateMock = vi.fn<(angle: number) => void>();
     const ctx = {
       canvas: { width: 1000, height: 1000 },
       getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([rgb[0], rgb[1], rgb[2], 255]) })),
       fillRect: vi.fn(),
       fillText: fillTextMock,
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: rotateMock,
       measureText: vi.fn((text: string) => {
         // Mock: width = fontSize * length * 0.6
         const fontSize = parseInt(currentFont) || 10;
@@ -37,7 +43,7 @@ describe('renderTranslationToImage Font Selection', () => {
       set globalAlpha(val: number) { currentGlobalAlpha = val; },
       get globalAlpha() { return currentGlobalAlpha; },
     } as unknown as CanvasRenderingContext2D;
-    return { ctx, fillTextMock };
+    return { ctx, fillTextMock, rotateMock };
   };
 
   it('matches original font size based on median item height', () => {
@@ -248,6 +254,7 @@ describe('renderTranslationToImage Font Selection', () => {
     expect(typeof captured?.overflow).toBe('boolean');
     expect(captured?.textAlign).toBe('center');
     expect(captured?.textBaseline).toBe('alphabetic');
+    expect(captured?.rotationDegrees).toBe(0);
   });
 
   it('keeps font-fit results deterministic for identical inputs', () => {
@@ -304,5 +311,44 @@ describe('renderTranslationToImage Font Selection', () => {
     }
     const rounded = advances.map((v) => Math.round(v * 1000) / 1000);
     expect(new Set(rounded).size).toBe(1);
+  });
+
+  it('applies canvas rotation when OCR angle metadata is present', () => {
+    const { ctx, rotateMock } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'angled',
+        translatedText: 'angled',
+        boundingBox: { x: 20, y: 20, width: 100, height: 30 },
+        items: [{
+          text: 'a',
+          confidence: 1,
+          angle: 15,
+          boundingBox: { x: 20, y: 20, width: 20, height: 20 },
+        }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    expect(rotateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to non-rotated rendering when OCR angle metadata is absent', () => {
+    const { ctx, rotateMock } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'plain',
+        translatedText: 'plain',
+        boundingBox: { x: 20, y: 20, width: 100, height: 30 },
+        items: [{ text: 'a', confidence: 1, boundingBox: { x: 20, y: 20, width: 20, height: 20 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    expect(rotateMock).not.toHaveBeenCalled();
   });
 });
