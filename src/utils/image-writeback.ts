@@ -8,6 +8,20 @@ export interface WriteBackOptions {
   fillOpacity?: number;
   paddingFactor?: number; // padding inside the bounding box (default 0.1)
   lineSpacing?: number;
+  onRegionRendered?: (metrics: WriteBackRegionMetrics) => void;
+}
+
+export interface WriteBackRegionMetrics {
+  regionIndex: number;
+  sourceText: string;
+  translatedText: string;
+  sampledBackgroundColor: string;
+  chosenTextColor: string;
+  chosenFontSize: number;
+  lineCount: number;
+  overflow: boolean;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
 }
 
 /**
@@ -33,7 +47,7 @@ export function renderTranslationToImage(
     lineSpacing = 1.2,
   } = options;
 
-  for (const region of regions) {
+  for (const [regionIndex, region] of regions.entries()) {
     const { x, y, width, height } = region.boundingBox;
 
     // Scale coordinates to original image size
@@ -68,7 +82,11 @@ export function renderTranslationToImage(
     // Determine the best font size that fits the box (binary search fit)
     const maxWidth = sw * (1 - paddingFactor);
     const maxHeight = sh * (1 - paddingFactor);
-    const { fontSize: fittingFontSize, lines: fittingLines } = fitTextToBox(
+    const {
+      fontSize: fittingFontSize,
+      lines: fittingLines,
+      overflow,
+    } = fitTextToBox(
       ctx,
       region.translatedText,
       maxWidth,
@@ -86,6 +104,19 @@ export function renderTranslationToImage(
     fittingLines.forEach((line, i) => {
       ctx.fillText(line, sx + sw / 2, startY + i * fittingFontSize * lineSpacing);
     });
+
+    options.onRegionRendered?.({
+      regionIndex,
+      sourceText: region.text,
+      translatedText: region.translatedText,
+      sampledBackgroundColor: bgColor,
+      chosenTextColor: textColor,
+      chosenFontSize: fittingFontSize,
+      lineCount: fittingLines.length,
+      overflow,
+      textAlign: 'center',
+      textBaseline: 'middle',
+    });
   }
 }
 
@@ -101,7 +132,7 @@ function fitTextToBox(
   maxFontSize: number,
   lineSpacing: number,
   fontFamily: string
-): { fontSize: number; lines: string[] } {
+): { fontSize: number; lines: string[]; overflow: boolean } {
   let low = minFontSize;
   let high = maxFontSize;
   let bestFontSize = minFontSize;
@@ -110,6 +141,7 @@ function fitTextToBox(
   // If even the min font size doesn't fit height-wise, we just return it and let it overflow or be cut
   const minLines = bestLines;
   const minHeight = minLines.length * minFontSize * lineSpacing;
+  let overflow = minHeight > maxHeight;
   if (minHeight > maxHeight && minFontSize === low) {
     // Already set to best possible
   }
@@ -133,7 +165,12 @@ function fitTextToBox(
     }
   }
 
-  return { fontSize: Math.floor(bestFontSize), lines: bestLines };
+  const fittedFontSize = Math.floor(bestFontSize);
+  ctx.font = `${fittedFontSize}px ${fontFamily}`;
+  const maxLineWidth = bestLines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+  overflow = overflow || maxLineWidth > maxWidth;
+
+  return { fontSize: fittedFontSize, lines: bestLines, overflow };
 }
 
 function getMedian(values: number[]): number {

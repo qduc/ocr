@@ -1,16 +1,26 @@
 /* @vitest-environment jsdom */
 import { describe, it, expect, vi } from 'vitest';
-import { renderTranslationToImage } from '../src/utils/image-writeback';
+import { renderTranslationToImage, type WriteBackRegionMetrics } from '../src/utils/image-writeback';
 import { OCRParagraphRegion } from '../src/utils/paragraph-grouping';
 
 describe('renderTranslationToImage Font Selection', () => {
-  const createMockContext = () => {
+  const createMockContext = (
+    rgb: [number, number, number] = [255, 255, 255]
+  ): {
+    ctx: CanvasRenderingContext2D;
+    fillTextMock: ReturnType<typeof vi.fn>;
+  } => {
     let currentFont = '10px sans-serif';
+    let currentFillStyle = 'black';
+    let currentTextAlign: CanvasTextAlign = 'start';
+    let currentTextBaseline: CanvasTextBaseline = 'alphabetic';
+    let currentGlobalAlpha = 1;
+    const fillTextMock = vi.fn();
     const ctx = {
       canvas: { width: 1000, height: 1000 },
-      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4).fill(255) })),
+      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([rgb[0], rgb[1], rgb[2], 255]) })),
       fillRect: vi.fn(),
-      fillText: vi.fn(),
+      fillText: fillTextMock,
       measureText: vi.fn((text: string) => {
         // Mock: width = fontSize * length * 0.6
         const fontSize = parseInt(currentFont) || 10;
@@ -18,16 +28,20 @@ describe('renderTranslationToImage Font Selection', () => {
       }),
       set font(val: string) { currentFont = val; },
       get font() { return currentFont; },
-      set fillStyle(val: string) {},
-      set textAlign(val: string) {},
-      set textBaseline(val: string) {},
-      set globalAlpha(val: number) {},
+      set fillStyle(val: string) { currentFillStyle = val; },
+      get fillStyle() { return currentFillStyle; },
+      set textAlign(val: CanvasTextAlign) { currentTextAlign = val; },
+      get textAlign() { return currentTextAlign; },
+      set textBaseline(val: CanvasTextBaseline) { currentTextBaseline = val; },
+      get textBaseline() { return currentTextBaseline; },
+      set globalAlpha(val: number) { currentGlobalAlpha = val; },
+      get globalAlpha() { return currentGlobalAlpha; },
     } as unknown as CanvasRenderingContext2D;
-    return ctx;
+    return { ctx, fillTextMock };
   };
 
   it('matches original font size based on median item height', () => {
-    const ctx = createMockContext();
+    const { ctx, fillTextMock } = createMockContext();
     const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
     const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
       {
@@ -51,7 +65,7 @@ describe('renderTranslationToImage Font Selection', () => {
     // 240 > 180, so it must shrink.
 
     // We can't easily check internal state, but we can verify fillText was called.
-    expect(ctx.fillText).toHaveBeenCalled();
+    expect(fillTextMock).toHaveBeenCalled();
 
     // Let's try a case where it fits perfectly.
     const regionsFit: Array<OCRParagraphRegion & { translatedText: string }> = [
@@ -72,11 +86,11 @@ describe('renderTranslationToImage Font Selection', () => {
     // Width: 3 * 30 * 0.6 = 54.
     // maxWidth: 100 * 0.9 = 90.
     // 54 < 90, so it should stay at 30 (or close, floors to 29 or 30).
-    expect(parseInt(ctx.font as string)).toBeGreaterThanOrEqual(29);
+    expect(parseInt(ctx.font)).toBeGreaterThanOrEqual(29);
   });
 
   it('shrinks font size to fit both width and height', () => {
-    const ctx = createMockContext();
+    const { ctx } = createMockContext();
     const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
     const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
       {
@@ -93,13 +107,13 @@ describe('renderTranslationToImage Font Selection', () => {
 
     // Original size was 30px.
     // The very long text will need much smaller font to fit in 100x40.
-    const fontSize = parseInt(ctx.font as string);
+    const fontSize = parseInt(ctx.font);
     expect(fontSize).toBeLessThan(30);
     expect(fontSize).toBeGreaterThanOrEqual(8); // minFontSize
   });
 
   it('handles extremely long words by breaking them', () => {
-    const ctx = createMockContext();
+    const { ctx, fillTextMock } = createMockContext();
     const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
     const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
       {
@@ -116,7 +130,73 @@ describe('renderTranslationToImage Font Selection', () => {
 
     // If it didn't break the word, it would have to shrink to a tiny font.
     // With breaking, it can keep it somewhat readable.
-    expect(ctx.fillText).toHaveBeenCalled();
-    expect(parseInt(ctx.font as string)).toBeGreaterThanOrEqual(8);
+    expect(fillTextMock).toHaveBeenCalled();
+    expect(parseInt(ctx.font)).toBeGreaterThanOrEqual(8);
+  });
+
+  it('uses centered alignment and middle baseline (current baseline behavior)', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'original',
+        translatedText: 'translated',
+        boundingBox: { x: 5, y: 5, width: 120, height: 40 },
+        items: [{ text: 'o', confidence: 1, boundingBox: { x: 5, y: 5, width: 12, height: 20 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    expect(ctx.textAlign).toBe('center');
+    expect(ctx.textBaseline).toBe('middle');
+  });
+
+  it('chooses contrasting text color for dark and bright backgrounds', () => {
+    const { ctx: darkCtx } = createMockContext([0, 0, 0]);
+    const darkCanvas = { getContext: () => darkCtx } as unknown as HTMLCanvasElement;
+    const { ctx: brightCtx } = createMockContext([255, 255, 255]);
+    const brightCanvas = { getContext: () => brightCtx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'word',
+        translatedText: 'word',
+        boundingBox: { x: 0, y: 0, width: 50, height: 30 },
+        items: [{ text: 'w', confidence: 1, boundingBox: { x: 0, y: 0, width: 10, height: 20 } }],
+      },
+    ];
+
+    renderTranslationToImage(darkCanvas, regions, 1, 1);
+    renderTranslationToImage(brightCanvas, regions, 1, 1);
+
+    expect(darkCtx.fillStyle).toBe('white');
+    expect(brightCtx.fillStyle).toBe('black');
+  });
+
+  it('reports write-back metrics through optional debug hook', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'short',
+        translatedText: 'very very very very very very very very very very long',
+        boundingBox: { x: 0, y: 0, width: 100, height: 20 },
+        items: [{ text: 's', confidence: 1, boundingBox: { x: 0, y: 0, width: 10, height: 16 } }],
+      },
+    ];
+
+    let captured: WriteBackRegionMetrics | undefined;
+    renderTranslationToImage(canvas, regions, 1, 1, {
+      onRegionRendered: (metrics): void => {
+        captured = metrics;
+      },
+    });
+
+    expect(captured?.regionIndex).toBe(0);
+    expect(captured?.sourceText).toBe('short');
+    expect(captured?.lineCount).toBeGreaterThan(0);
+    expect(typeof captured?.overflow).toBe('boolean');
+    expect(captured?.textAlign).toBe('center');
+    expect(captured?.textBaseline).toBe('middle');
   });
 });

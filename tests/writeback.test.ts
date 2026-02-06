@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { groupOcrItemsIntoLines, groupOcrItemsIntoParagraphs } from '../src/utils/paragraph-grouping';
 import { OCRItem } from '../src/types/ocr-engine';
 
