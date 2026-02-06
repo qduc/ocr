@@ -98,6 +98,13 @@ describe('EasyOCREngine', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items![0].text).toBe('Hello');
     expect(result.items![0].confidence).toBe(0.95);
+    expect(result.items![0].quad).toEqual([
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [0, 5],
+    ]);
+    expect(result.items![0].angle).toBe(0);
     expect(result.items![0].boundingBox).toEqual({
       x: 0,
       y: 0,

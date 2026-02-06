@@ -12,11 +12,14 @@ import {
 import { OCRError } from '@/types/ocr-errors';
 import type { OCRResult } from '@/types/ocr-engine';
 import { ENGINE_CONFIGS } from '@/types/ocr-models';
-import {
-  SUPPORTED_LANGUAGES,
-  TESSERACT_LANGUAGES,
-  EASYOCR_LANGUAGES,
-} from '@/utils/language-config';
+import { buildParagraphTextForTranslation } from '@/utils/paragraph-grouping';
+import type { ITextTranslator } from '@/types/translation';
+import { getAppTemplate } from '@/app-template';
+import { getAppElements } from '@/app-elements';
+import { drawOcrBoxes } from '@/overlay-renderer';
+import { createTranslationController } from '@/translation-controller';
+import { createEngineUiController } from '@/engine-ui';
+import { createImageSourceController } from '@/image-sources';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'complete' | 'error';
 
@@ -26,6 +29,7 @@ export interface AppOptions {
   imageProcessor?: ImageProcessor;
   engineFactory?: EngineFactory;
   ocrManager?: OCRManager;
+  createTranslator?: () => Promise<ITextTranslator>;
   registerEngines?: (
     factory: EngineFactory,
     setStage: (stage: Stage, message: string, progress?: number) => void
@@ -52,6 +56,18 @@ export interface AppInstance {
     imagePreviewContainer: HTMLDivElement;
     urlInput: HTMLInputElement;
     loadUrlButton: HTMLButtonElement;
+    translateResult: HTMLTextAreaElement;
+    translateFrom: HTMLSelectElement;
+    translateTo: HTMLSelectElement;
+
+    translateRunButton: HTMLButtonElement;
+    translateWritebackButton: HTMLButtonElement;
+    translateCopyButton: HTMLButtonElement;
+    translateStatus: HTMLDivElement;
+    translateError: HTMLDivElement;
+    translatedImageContainer: HTMLDivElement;
+    translatedImagePreview: HTMLImageElement;
+    downloadTranslatedButton: HTMLButtonElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -62,199 +78,54 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     throw new Error('App root not found.');
   }
 
-  root.innerHTML = `
-    <div class="page">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Multi-Engine OCR</p>
-          <h1>Extract text directly in your browser.</h1>
-          <p class="subtitle">
-            Privacy-first OCR powered by modern browser technologies like WebAssembly and WebGPU.
-          </p>
-        </div>
-      </header>
+  root.innerHTML = getAppTemplate();
+  const {
+    statusCard,
+    statusText,
+    progressBar,
+    progressText,
+    loadMetric,
+    processMetric,
+    fileInput,
+    fileMeta,
+    engineSelect,
+    engineDetails,
+    languageSelect,
+    languageSelectContainer,
+    languageHint,
+    runButton,
+    output,
+    errorPanel,
+    errorMessage,
+    errorSuggestion,
+    retryButton,
+    imagePreviewContainer,
+    imagePreview,
+    ocrOverlay,
+    imageModal,
+    modalImage,
+    closeModal,
+    ocrOverlayModal,
+    urlInput,
+    loadUrlButton,
+    dropOverlay,
+    copyOutputButton,
+    translateResult,
+    translateFrom,
+    translateTo,
 
-      <main class="main-grid">
-        <section class="panel upload-panel">
-          <h2>1. Settings & Source</h2>
-          <div class="engine-select">
-            <label for="engine-select">OCR engine</label>
-            <select id="engine-select"></select>
-            <div id="engine-details" class="engine-details"></div>
-          </div>
-          <div id="language-select-container" class="engine-select hidden">
-            <label for="language-select">Language</label>
-            <select id="language-select"></select>
-          </div>
-
-          <div class="input-methods">
-            <div class="method-tabs" role="tablist" aria-label="Image source">
-              <button class="method-tab is-active" type="button" data-method="file" role="tab" aria-selected="true">
-                Upload
-              </button>
-              <button class="method-tab" type="button" data-method="url" role="tab" aria-selected="false">
-                URL
-              </button>
-            </div>
-            <div class="method-panels">
-              <div class="method-panel is-active" data-method="file" role="tabpanel">
-                <div class="file-input">
-                  <label for="file-input" class="method-label">Upload File</label>
-                  <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" />
-                  <div id="file-meta" class="file-meta">No file selected.</div>
-                </div>
-              </div>
-
-              <div class="method-panel" data-method="url" role="tabpanel">
-                <div class="url-input">
-                  <label for="url-input" class="method-label">Image URL</label>
-                  <div class="url-row">
-                    <input id="url-input" type="url" placeholder="https://example.com/image.jpg" />
-                    <button id="load-url-button" class="icon-button" title="Load image from URL">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div id="image-preview-container" class="image-preview-container hidden">
-            <div id="preview-wrapper" class="preview-wrapper">
-              <img id="image-preview" class="image-preview" src="" alt="Preview" />
-              <div id="ocr-overlay" class="ocr-overlay"></div>
-            </div>
-          </div>
-          <button id="run-button" class="primary-button" type="button">Extract text</button>
-        </section>
-
-        <div class="results-column">
-          <section class="status-card" data-stage="idle">
-            <div class="status-row">
-              <span class="status-label">Status</span>
-              <span id="status-text">Idle</span>
-            </div>
-            <div class="progress">
-              <div id="progress-bar" class="progress-bar"></div>
-            </div>
-            <div id="progress-text" class="progress-text">0%</div>
-            <div class="metrics">
-              <div id="load-metric">Load: --</div>
-              <div id="process-metric">Process: --</div>
-            </div>
-          </section>
-
-          <section class="panel result-panel">
-            <div class="result-header">
-              <h2>2. OCR output</h2>
-              <button id="copy-output-button" class="icon-button hidden" title="Copy all text">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
-            </div>
-            <div id="output" class="output">Upload an image to begin.</div>
-          </section>
-        </div>
-      </main>
-
-      <section id="error-panel" class="panel error-panel hidden">
-        <div class="error-header">
-          <h2>Issue detected</h2>
-          <button id="retry-button" class="ghost-button" type="button">Retry</button>
-        </div>
-        <p id="error-message" class="error-message"></p>
-        <p id="error-suggestion" class="error-suggestion"></p>
-      </section>
-    </div>
-
-    <div id="image-modal" class="image-modal hidden">
-      <div id="modal-content" class="modal-content">
-        <span id="close-modal" class="close-modal">&times;</span>
-        <div id="modal-preview-wrapper" class="preview-wrapper">
-          <img id="modal-image" class="modal-image" src="" alt="Enlarged Preview" />
-          <div id="ocr-overlay-modal" class="ocr-overlay"></div>
-        </div>
-      </div>
-    </div>
-    <div id="drop-overlay" class="drop-overlay hidden">
-      <div class="drop-content">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        <span>Drop image to process</span>
-      </div>
-    </div>
-  `;
-
-  const statusCard = root.querySelector<HTMLDivElement>('.status-card');
-  const statusText = root.querySelector<HTMLSpanElement>('#status-text');
-  const progressBar = root.querySelector<HTMLDivElement>('#progress-bar');
-  const progressText = root.querySelector<HTMLDivElement>('#progress-text');
-  const loadMetric = root.querySelector<HTMLDivElement>('#load-metric');
-  const processMetric = root.querySelector<HTMLDivElement>('#process-metric');
-  const fileInput = root.querySelector<HTMLInputElement>('#file-input');
-  const fileMeta = root.querySelector<HTMLDivElement>('#file-meta');
-  const engineSelect = root.querySelector<HTMLSelectElement>('#engine-select');
-  const engineDetails = root.querySelector<HTMLDivElement>('#engine-details');
-  const languageSelect = root.querySelector<HTMLSelectElement>('#language-select');
-  const languageSelectContainer = root.querySelector<HTMLDivElement>('#language-select-container');
-  const runButton = root.querySelector<HTMLButtonElement>('#run-button');
-  const output = root.querySelector<HTMLDivElement>('#output');
-  const errorPanel = root.querySelector<HTMLDivElement>('#error-panel');
-  const errorMessage = root.querySelector<HTMLParagraphElement>('#error-message');
-  const errorSuggestion = root.querySelector<HTMLParagraphElement>('#error-suggestion');
-  const retryButton = root.querySelector<HTMLButtonElement>('#retry-button');
-  const imagePreviewContainer = root.querySelector<HTMLDivElement>('#image-preview-container');
-  const imagePreview = root.querySelector<HTMLImageElement>('#image-preview');
-  const ocrOverlay = root.querySelector<HTMLDivElement>('#ocr-overlay');
-  const imageModal = root.querySelector<HTMLDivElement>('#image-modal');
-  const modalImage = root.querySelector<HTMLImageElement>('#modal-image');
-  const closeModal = root.querySelector<HTMLSpanElement>('#close-modal');
-  const ocrOverlayModal = root.querySelector<HTMLDivElement>('#ocr-overlay-modal');
-  const urlInput = root.querySelector<HTMLInputElement>('#url-input');
-  const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
-  const dropOverlay = root.querySelector<HTMLDivElement>('#drop-overlay');
-  const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
-  const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
-  const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
-
-  if (
-    !statusCard ||
-    !statusText ||
-    !progressBar ||
-    !progressText ||
-    !loadMetric ||
-    !processMetric ||
-    !fileInput ||
-    !fileMeta ||
-    !engineSelect ||
-    !engineDetails ||
-    !languageSelect ||
-    !languageSelectContainer ||
-    !runButton ||
-    !output ||
-    !errorPanel ||
-    !errorMessage ||
-    !errorSuggestion ||
-    !retryButton ||
-    !imagePreviewContainer ||
-    !imagePreview ||
-    !ocrOverlay ||
-    !imageModal ||
-    !modalImage ||
-    !closeModal ||
-    !ocrOverlayModal ||
-    !copyOutputButton ||
-    !urlInput ||
-    !loadUrlButton ||
-    !dropOverlay ||
-    methodTabs.length === 0 ||
-    methodPanels.length === 0
-  ) {
-    throw new Error('UI elements missing.');
-  }
+    translateRunButton,
+    translateWritebackButton,
+    translateCopyButton,
+    translateSwapButton,
+    translateStatus,
+    translateError,
+    translatedImageContainer,
+    translatedImagePreview,
+    downloadTranslatedButton,
+    methodTabs,
+    methodPanels,
+  } = getAppElements(root);
 
   const detector = options.featureDetector ?? new FeatureDetector();
   const capabilities = detector.detect();
@@ -273,59 +144,55 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
   };
   let activeEngineId: string | null = null;
   let activeLanguage: string | null = null;
-  let currentPreviewUrl: string | null = null;
   let lastResult: OCRResult | null = null;
   let lastProcessedWidth: number = 0;
   let lastProcessedHeight: number = 0;
 
-  const setActiveMethod = (method: string): void => {
-    methodTabs.forEach((tab): void => {
-      const isActive = tab.dataset.method === method;
-      tab.classList.toggle('is-active', isActive);
-      tab.setAttribute('aria-selected', String(isActive));
-    });
-    methodPanels.forEach((panel): void => {
-      panel.classList.toggle('is-active', panel.dataset.method === method);
-    });
-    if (method === 'file') {
-      fileInput.focus();
-    } else if (method === 'url') {
-      urlInput.focus();
+  createImageSourceController(
+    {
+      fileInput,
+      fileMeta,
+      imagePreviewContainer,
+      imagePreview,
+      urlInput,
+      loadUrlButton,
+      dropOverlay,
+      methodTabs,
+      methodPanels,
+      output,
+    },
+    {
+      setError: (error) => setError(createInvalidImageError(formatErrorMessage(error).message)),
+      onLoadImage: (source) => {
+        selectedSource = source;
+      },
+      onClearImage: () => {
+        selectedSource = null;
+      },
+      onPreviewLoaded: () => undefined,
+      onResetForNewSource: () => {
+        translationController.resetForNewSource();
+        ocrOverlay.innerHTML = '';
+        lastResult = null;
+        copyOutputButton.classList.add('hidden');
+      },
     }
-  };
+  );
 
-  const languageOptionsByEngine: Record<string, Record<string, string>> = {
-    tesseract: TESSERACT_LANGUAGES,
-    esearch: SUPPORTED_LANGUAGES,
-    easyocr: EASYOCR_LANGUAGES,
-  };
-  const webgpuEngines = new Set(['transformers', 'esearch', 'easyocr']);
-
-  const supportsLanguageSelection = (engineId: string): boolean =>
-    Boolean(languageOptionsByEngine[engineId]);
-
-  const getLanguageOptions = (engineId: string): Record<string, string> | null =>
-    languageOptionsByEngine[engineId] ?? null;
-
-  const getSelectedLanguage = (engineId: string): string => {
-    const options = getLanguageOptions(engineId);
-    const keys = options ? Object.keys(options) : [];
-    const firstOption = keys.length > 0 ? (keys[0] as string) : 'eng';
-    const fallback: string = selectedLanguages[engineId] ?? firstOption;
-    const selected: string = selectedLanguages[engineId] ?? fallback;
-
-    if (options && !(selected in options)) {
-      selectedLanguages[engineId] = fallback;
-      return fallback;
+  const engineUi = createEngineUiController(
+    {
+      engineSelect,
+      engineDetails,
+      languageSelect,
+      languageSelectContainer,
+      languageHint,
+    },
+    {
+      webgpuAvailable,
+      selectedLanguages,
+      availableEngines: () => engineFactory.getAvailableEngines(),
     }
-
-    return selected;
-  };
-
-  const getLanguageLabel = (engineId: string, language: string): string => {
-    const options = getLanguageOptions(engineId);
-    return options?.[language] ?? language;
-  };
+  );
 
   const setStage = (stage: Stage, message: string, progress: number = 0): void => {
     statusCard.dataset.stage = stage;
@@ -358,6 +225,35 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     errorMessage.textContent = '';
     errorSuggestion.textContent = '';
   };
+
+  const translationController = createTranslationController(
+    {
+      translateResult,
+      translateFrom,
+      translateTo,
+
+      translateRunButton,
+      translateWritebackButton,
+      translateCopyButton,
+      translateSwapButton,
+      translateStatus,
+      translateError,
+      translatedImageContainer,
+      translatedImagePreview,
+      downloadTranslatedButton,
+    },
+    {
+      imageProcessor,
+      createTranslator: options.createTranslator,
+      getOcrText: () => getOcrTextForTranslation(),
+      getWritebackContext: () => ({
+        items: lastResult?.items ?? null,
+        selectedSource,
+        lastProcessedWidth,
+        lastProcessedHeight,
+      }),
+    }
+  );
 
   const setBusy = (busy: boolean): void => {
     runButton.disabled = busy;
@@ -403,6 +299,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       const { EasyOCREngine } = await import('@/engines/easyocr-engine');
       return new EasyOCREngine({
         language: options?.language,
+        webgpu: webgpuAvailable,
+        debug: true,
+        debugMode: 'compare',
         onProgress: (status: string, progress: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading EasyOCR: ${status}`, percent);
@@ -411,38 +310,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     });
   };
 
-  const formatSupportedLanguages = (engineId: string): string => {
-    const config = ENGINE_CONFIGS[engineId];
-    if (!config) {
-      return '';
-    }
-
-    if (engineId === 'tesseract') {
-      return '100+ languages';
-    }
-
-    const options = getLanguageOptions(engineId);
-    if (!options) {
-      return config.supportedLanguages.join(', ');
-    }
-
-    return config.supportedLanguages.map((language) => options[language] ?? language).join(', ');
-  };
-
   const updateEngineDetails = (engineId: string): void => {
-    const config = ENGINE_CONFIGS[engineId];
-    if (!config) {
-      engineDetails.textContent = 'Unknown engine configuration.';
-      return;
-    }
-
-    const gpuNote = webgpuEngines.has(engineId)
-      ? webgpuAvailable
-        ? 'WebGPU enabled'
-        : 'CPU mode (WebGPU unavailable)'
-      : '';
-    const languages = formatSupportedLanguages(engineId);
-    engineDetails.textContent = `${config.description} • ${languages}${gpuNote ? ` • ${gpuNote}` : ''}`;
+    engineUi.updateEngineDetails(engineId);
   };
 
   const getStoredEngine = (): string | null => {
@@ -461,55 +330,49 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   };
 
+
   const updateLanguageSelection = (engineId: string): void => {
-    const options = getLanguageOptions(engineId);
-    const shouldShow = Boolean(options);
-    languageSelectContainer.classList.toggle('hidden', !shouldShow);
-
-    if (!options) {
-      languageSelect.innerHTML = '';
-      return;
-    }
-
-    languageSelect.innerHTML = '';
-    // Sort languages alphabetically for better UX
-    const sortedOptions = Object.entries(options).sort((a, b) => a[1].localeCompare(b[1]));
-    for (const [key, name] of sortedOptions) {
-      const option = document.createElement('option');
-      option.value = key;
-      option.textContent = name;
-      languageSelect.append(option);
-    }
-
-    const selected = getSelectedLanguage(engineId);
-    selectedLanguages[engineId] = selected;
-    languageSelect.value = selected;
+    engineUi.updateLanguageSelection(engineId);
   };
 
-  const populateEngines = (): void => {
-    const engines = engineFactory.getAvailableEngines();
-    engineSelect.innerHTML = '';
-    for (const engineId of engines) {
-      const option = document.createElement('option');
-      option.value = engineId;
-      option.textContent = ENGINE_CONFIGS[engineId]?.name ?? engineId;
-      engineSelect.append(option);
-    }
+  const updateTranslateFromDefault = (): void => {
+    const engineId = activeEngineId ?? selectedEngineId;
+    const ocrLanguage =
+      engineId && engineUi.supportsLanguageSelection(engineId)
+        ? engineUi.getSelectedLanguage(engineId)
+        : 'eng';
+    translationController.updateTranslateFromDefault(engineId, ocrLanguage);
+  };
 
-    const preferred = getStoredEngine();
-    selectedEngineId = engines.includes(preferred ?? '') ? preferred : (engines[0] ?? null);
+
+
+
+
+  const populateEngines = (): void => {
+    engineUi.populateEngines(getStoredEngine);
+    selectedEngineId = engineSelect.value || null;
     if (selectedEngineId) {
-      engineSelect.value = selectedEngineId;
       updateEngineDetails(selectedEngineId);
       updateLanguageSelection(selectedEngineId);
     }
   };
 
+  const initTranslationControls = (): void => {
+    translationController.init(() => {
+      const engineId = activeEngineId ?? selectedEngineId;
+      const ocrLanguage =
+        engineId && engineUi.supportsLanguageSelection(engineId)
+          ? engineUi.getSelectedLanguage(engineId)
+          : 'eng';
+      return { engineId: engineId ?? null, ocrLanguage };
+    });
+  };
+
   const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
     const engineName = ENGINE_CONFIGS[engineId]?.name ?? engineId;
-    const language = getSelectedLanguage(engineId);
-    const langSuffix = supportsLanguageSelection(engineId)
-      ? ` (${getLanguageLabel(engineId, language)})`
+    const language = engineUi.getSelectedLanguage(engineId);
+    const langSuffix = engineUi.supportsLanguageSelection(engineId)
+      ? ` (${engineUi.getLanguageLabel(engineId, language)})`
       : '';
     setStage('loading', `Switching to ${engineName}${langSuffix}...`, 0);
     if (manageBusy) {
@@ -517,7 +380,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
     try {
       const loadStart = performance.now();
-      if (supportsLanguageSelection(engineId)) {
+      if (engineUi.supportsLanguageSelection(engineId)) {
         await ocrManager.setEngine(engineId, { language });
       } else {
         await ocrManager.setEngine(engineId);
@@ -525,7 +388,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       setLoadMetric(performance.now() - loadStart);
       engineReady = true;
       activeEngineId = engineId;
-      activeLanguage = supportsLanguageSelection(engineId) ? language : null;
+      activeLanguage = engineUi.supportsLanguageSelection(engineId) ? language : null;
+      updateTranslateFromDefault();
       setStage('idle', `${engineName} ready`, 0);
     } catch (error) {
       logError(error);
@@ -548,136 +412,10 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       registerDefaultEngines();
     }
     populateEngines();
+    initTranslationControls();
     setStage('idle', 'Ready for upload', 0);
   }
 
-  const loadImage = (source: Blob | string): void => {
-    if (currentPreviewUrl) {
-      URL.revokeObjectURL(currentPreviewUrl);
-      currentPreviewUrl = null;
-    }
-
-    selectedSource = source;
-
-    if (source instanceof File) {
-      fileMeta.textContent = `${source.name} (${Math.round(source.size / 1024)} KB)`;
-    } else if (source instanceof Blob) {
-      fileMeta.textContent = `Pasted image (${Math.round(source.size / 1024)} KB)`;
-    } else {
-      fileMeta.textContent = `URL: ${source.substring(0, 30)}${source.length > 30 ? '...' : ''}`;
-    }
-
-    output.textContent = 'Image loaded. Click extract to run OCR.';
-
-    if (source instanceof Blob) {
-      currentPreviewUrl = URL.createObjectURL(source);
-      imagePreview.removeAttribute('crossorigin');
-      imagePreview.src = currentPreviewUrl;
-    } else {
-      imagePreview.crossOrigin = 'anonymous';
-      imagePreview.src = source;
-    }
-
-    imagePreviewContainer.classList.remove('hidden');
-    ocrOverlay.innerHTML = '';
-    lastResult = null;
-    copyOutputButton.classList.add('hidden');
-  };
-
-  imagePreview.addEventListener('error', (): void => {
-    if (imagePreview.getAttribute('src')) {
-      setError(createInvalidImageError('Failed to load image. Check the URL or file format.'));
-      imagePreviewContainer.classList.add('hidden');
-      selectedSource = null;
-    }
-  });
-
-  fileInput.addEventListener('change', (): void => {
-    const file = fileInput.files?.[0];
-    if (file) {
-      setActiveMethod('file');
-      loadImage(file);
-    } else {
-      imagePreviewContainer.classList.add('hidden');
-      selectedSource = null;
-      fileMeta.textContent = 'No file selected.';
-      output.textContent = 'Upload an image to begin.';
-    }
-  });
-
-  loadUrlButton.addEventListener('click', (): void => {
-    const url = urlInput.value.trim();
-    if (url) {
-      setActiveMethod('url');
-      loadImage(url);
-    }
-  });
-
-  urlInput.addEventListener('keypress', (e: KeyboardEvent): void => {
-    if (e.key === 'Enter') {
-      const url = urlInput.value.trim();
-      if (url) {
-        setActiveMethod('url');
-        loadImage(url);
-      }
-    }
-  });
-
-  methodTabs.forEach((tab): void => {
-    tab.addEventListener('click', (): void => {
-      const method = tab.dataset.method ?? 'file';
-      setActiveMethod(method);
-    });
-  });
-  setActiveMethod(methodTabs[0]?.dataset.method ?? 'file');
-
-  const handlePaste = (e: ClipboardEvent): void => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        const blob = item.getAsFile();
-        if (blob) {
-          setActiveMethod('file');
-          loadImage(blob);
-          break;
-        }
-      }
-    }
-  };
-
-  document.addEventListener('paste', handlePaste);
-
-  let dragCounter = 0;
-
-  document.addEventListener('dragenter', (e): void => {
-    e.preventDefault();
-    dragCounter++;
-    dropOverlay.classList.remove('hidden');
-  });
-
-  document.addEventListener('dragover', (e): void => {
-    e.preventDefault();
-  });
-
-  document.addEventListener('dragleave', (): void => {
-    dragCounter--;
-    if (dragCounter === 0) {
-      dropOverlay.classList.add('hidden');
-    }
-  });
-
-  document.addEventListener('drop', (e): void => {
-    e.preventDefault();
-    dragCounter = 0;
-    dropOverlay.classList.add('hidden');
-    const file = e.dataTransfer?.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setActiveMethod('file'); // Reuse the 'file' UI for dropped files, or stick with current
-      loadImage(file);
-    }
-  });
 
   engineSelect.addEventListener('change', (): void => {
     selectedEngineId = engineSelect.value;
@@ -686,17 +424,20 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     setStoredEngine(selectedEngineId);
     updateEngineDetails(selectedEngineId);
     updateLanguageSelection(selectedEngineId);
+    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
   languageSelect.addEventListener('change', (): void => {
-    if (!selectedEngineId || !supportsLanguageSelection(selectedEngineId)) {
+    if (!selectedEngineId || !engineUi.supportsLanguageSelection(selectedEngineId)) {
       return;
     }
 
     selectedLanguages[selectedEngineId] = languageSelect.value;
     engineReady = false;
     activeLanguage = null;
+    engineUi.updateLanguageHint(selectedEngineId);
+    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
@@ -719,8 +460,8 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       }
 
       const languageMismatch =
-        supportsLanguageSelection(selectedEngineId) &&
-        activeLanguage !== getSelectedLanguage(selectedEngineId);
+        engineUi.supportsLanguageSelection(selectedEngineId) &&
+        activeLanguage !== engineUi.getSelectedLanguage(selectedEngineId);
       if (!engineReady || activeEngineId !== selectedEngineId || languageMismatch) {
         await switchEngine(selectedEngineId, false);
         if (!engineReady || activeEngineId !== selectedEngineId) {
@@ -729,6 +470,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       }
 
       setStage('processing', 'Processing image...', 100);
+      translatedImageContainer.classList.add('hidden');
       const imageData = await imageProcessor.sourceToImageData(selectedSource);
       const resized = imageProcessor.resize(imageData, 2000);
       const processed =
@@ -743,8 +485,15 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       output.textContent =
         result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
       copyOutputButton.classList.toggle('hidden', result.text.trim().length === 0);
+      translationController.onOcrUpdated();
       if (result.items && result.items.length > 0) {
-        drawBoxes(result.items, processed.width, processed.height);
+        drawOcrBoxes(result.items, processed.width, processed.height, {
+          mainOverlay: ocrOverlay,
+          mainImage: imagePreview,
+          modalOverlay: ocrOverlayModal,
+          modalImage,
+          isModalOpen: () => !imageModal.classList.contains('hidden'),
+        });
       } else {
         ocrOverlay.innerHTML = '';
       }
@@ -780,7 +529,13 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       document.body.style.overflow = 'hidden'; // Prevent scrolling
 
       if (lastResult?.items && lastProcessedWidth && lastProcessedHeight) {
-        drawBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight);
+        drawOcrBoxes(lastResult.items, lastProcessedWidth, lastProcessedHeight, {
+          mainOverlay: ocrOverlay,
+          mainImage: imagePreview,
+          modalOverlay: ocrOverlayModal,
+          modalImage,
+          isModalOpen: () => !imageModal.classList.contains('hidden'),
+        });
       }
     }
   });
@@ -821,84 +576,51 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   });
 
-  const renderOverlay = (
-    overlay: HTMLDivElement,
-    image: HTMLImageElement,
-    items: OCRResult['items'],
-    originalWidth: number,
-    originalHeight: number
-  ): void => {
-    if (!items) return;
-    overlay.innerHTML = '';
+  const getOcrTextForTranslation = (): string => {
+    let text = '';
 
-    const displayWidth = image.clientWidth;
-    const displayHeight = image.clientHeight;
+    if (lastResult?.items && lastResult.items.length > 0) {
+      text = buildParagraphTextForTranslation(lastResult.items);
+    } else {
+      text = lastResult?.text ?? output.textContent ?? '';
+    }
 
-    if (displayWidth === 0 || displayHeight === 0) return;
-
-    const scaleX = displayWidth / originalWidth;
-    const scaleY = displayHeight / originalHeight;
-
-    items.forEach((item) => {
-      const box = document.createElement('div');
-      box.className = 'ocr-box';
-      box.style.left = `${item.boundingBox.x * scaleX}px`;
-      box.style.top = `${item.boundingBox.y * scaleY}px`;
-      box.style.width = `${item.boundingBox.width * scaleX}px`;
-      box.style.height = `${item.boundingBox.height * scaleY}px`;
-      box.title = `${item.text} (${Math.round(item.confidence * 100)}%) - Click to copy`;
-      box.setAttribute('data-text', item.text);
-
-      const topPos = item.boundingBox.y * scaleY;
-      if (topPos < 32) {
-        box.classList.add('at-top');
-      }
-
-      box.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent modal from closing if in modal
-        void navigator.clipboard.writeText(item.text).then(() => {
-          box.classList.add('copied');
-          const originalText = box.getAttribute('data-text');
-          box.setAttribute('data-text', 'Copied!');
-          setTimeout(() => {
-            box.classList.remove('copied');
-            box.setAttribute('data-text', originalText || item.text);
-          }, 1500);
-        });
-      });
-
-      overlay.appendChild(box);
-    });
+    if (
+      !text ||
+      text === 'Upload an image to begin.' ||
+      text === 'No text detected in this image.' ||
+      text === 'Image loaded. Click extract to run OCR.'
+    ) {
+      return '';
+    }
+    return text;
   };
+
+  // Allow clicking the translated preview to open the same image modal (enlarge)
+  translatedImagePreview.addEventListener('click', (): void => {
+    if (translatedImagePreview.src && !translatedImageContainer.classList.contains('hidden')) {
+      // Show translated image in modal. Do not draw OCR boxes here to avoid
+      // coordinate mismatches between processed and written-back image sizes.
+      modalImage.src = translatedImagePreview.src;
+      ocrOverlayModal.innerHTML = '';
+      imageModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
+  });
+
 
   const drawBoxes = (
     items: OCRResult['items'],
     originalWidth: number,
     originalHeight: number
   ): void => {
-    if (!items) return;
-
-    const updateMain = (): void => {
-      renderOverlay(ocrOverlay, imagePreview, items, originalWidth, originalHeight);
-    };
-
-    const updateModal = (): void => {
-      renderOverlay(ocrOverlayModal, modalImage, items, originalWidth, originalHeight);
-    };
-
-    if (imagePreview.complete) {
-      updateMain();
-    } else {
-      imagePreview.addEventListener('load', updateMain, { once: true });
-    }
-
-    if (!imageModal.classList.contains('hidden')) {
-      if (modalImage.complete) {
-        updateModal();
-      } else {
-        modalImage.addEventListener('load', updateModal, { once: true });
-      }
-    }
+    drawOcrBoxes(items, originalWidth, originalHeight, {
+      mainOverlay: ocrOverlay,
+      mainImage: imagePreview,
+      modalOverlay: ocrOverlayModal,
+      modalImage,
+      isModalOpen: () => !imageModal.classList.contains('hidden'),
+    });
   };
 
   window.addEventListener('resize', (): void => {
@@ -927,6 +649,18 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer,
       urlInput,
       loadUrlButton,
+      translateResult,
+      translateFrom,
+      translateTo,
+
+      translateRunButton,
+      translateWritebackButton,
+      translateCopyButton,
+      translateStatus,
+      translateError,
+      translatedImageContainer,
+      translatedImagePreview,
+      downloadTranslatedButton,
     },
     setStage,
   };

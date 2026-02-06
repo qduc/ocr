@@ -432,3 +432,35 @@ if (!supported) {
 - [ ] Test engine switching (memory cleanup)
 - [ ] Performance comparison (Tesseract vs Transformers vs EasyOCR)
 - [ ] Document WebGPU browser support limitations
+
+---
+
+## 9. Translation System (Bergamot Integration)
+
+The translation system uses the **Bergamot** engine, which is a WASM-based port of the Marian NMT framework, as used in Firefox Translations.
+
+### Architecture
+
+- **Translator Service**: Wrapped in `ITextTranslator` interface.
+- **Worker-based**: Runs in a separate worker to avoid blocking the main thread.
+- **Memory Isolation**: Requires `SharedArrayBuffer`, which mandates `crossOriginIsolated` headers (handled by `coi-serviceworker.js`).
+- **Model Management**: Models are downloaded from Mozilla's storage and cached in IndexedDB.
+
+### Components
+
+- `src/translation/bergamot-translator.ts`: Core translation logic.
+- `src/translation-controller.ts`: Manages the translation UI, language selection, and result display.
+- `src/utils/image-writeback.ts`: Renders translated text back onto the image, matching original positions.
+- `src/utils/paragraph-grouping.ts`: Groups individual OCR items into semantic paragraphs for better translation quality.
+
+### Write-Back Rendering Profiles
+
+Write-back rendering supports three quality presets:
+
+- `fast`: Uses fill-based erase without inpainting for speed.
+- `balanced`: Attempts OpenCV inpainting when available, then falls back to fill-based erase.
+- `high-quality`: Uses inpainting fallback logic plus halo text stroke for readability on noisy backgrounds.
+
+### Language Registry
+
+The language registry is generated via `scripts/generate-bergamot-registry.mjs`, which fetches the latest model list from Mozilla and prepares it for the browser.

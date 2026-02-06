@@ -1,6 +1,8 @@
 export interface OCRItem {
   text: string;
   confidence: number;
+  quad?: [[number, number], [number, number], [number, number], [number, number]];
+  angle?: number; // degrees, clockwise-positive in image coordinates
   boundingBox: {
     x: number;
     y: number;

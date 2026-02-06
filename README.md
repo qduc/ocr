@@ -14,6 +14,8 @@ A high-performance, multi-engine OCR (Optical Character Recognition) system that
   - **Transformers.js (TrOCR)**: State-of-the-art AI accuracy using Transformer models.
   - **eSearch-OCR (PaddleOCR)**: High-speed, high-accuracy engine optimized for Chinese/English mixed text.
   - **EasyOCR.js**: EasyOCR models running locally with ONNX Runtime.
+- **🌍 Local Translation**: Translate extracted text instantly using **Bergamot** (the engine behind Firefox Translations), keeping everything 100% private and on-device.
+- **🖼️ Write-Back Quality Presets**: Choose `fast`, `balanced`, or `high-quality` translated image rendering modes based on speed vs visual fidelity.
 - **🔋 Performance Optimized**: Uses WebAssembly (WASM), Web Workers, and WebGPU acceleration for near-native speeds.
 - **📦 Intelligent Caching**: Heavy model files are cached in **IndexedDB** for instant subsequent loads.
 - **🎨 Glassmorphism UI**: A modern, clean interface with drag-and-drop, URL, and paste support.
@@ -58,7 +60,7 @@ A high-performance, multi-engine OCR (Optical Character Recognition) system that
 
 ### 🌍 Model Loading
 
-Most engines download their models automatically from CDNs (Hugging Face or Tesseract CDN) on their first run and cache them locally.
+Most engines download their models automatically from CDNs (Hugging Face or Tesseract CDN) on their first run and cache them locally. Translation models are also downloaded on demand.
 
 #### eSearch-OCR Manual Setup (Optional for Offline)
 
@@ -70,7 +72,8 @@ By default, eSearch-OCR fetches models from Hugging Face. If you need to use it 
 ## 📂 Project Structure
 
 - `src/engines/`: Implementation of different OCR strategies.
-- `src/utils/`: Image processing, feature detection, and model caching.
+- `src/translation/`: Bergamot-based translation implementation.
+- `src/utils/`: Image processing, feature detection, translation utilities, and model caching.
 - `src/types/`: Shared TypeScript interfaces.
 - `tests/`: Comprehensive test suite using Vitest.
 - `docs/`: Technical specifications and decision logs.

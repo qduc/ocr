@@ -13,7 +13,7 @@ export interface ModelCacheOptions {
 }
 
 class IndexedDBStorage implements ModelCacheStorage {
-  private dbPromise: Promise<IDBDatabase> | null = null;
+  private static dbPromises = new Map<string, Promise<IDBDatabase>>();
 
   constructor(
     private readonly dbName: string,
@@ -49,21 +49,38 @@ class IndexedDBStorage implements ModelCacheStorage {
   }
 
   private async getDb(): Promise<IDBDatabase> {
-    if (this.dbPromise) {
-      return this.dbPromise;
+    const existingPromise = IndexedDBStorage.dbPromises.get(this.dbName);
+    if (existingPromise) {
+      try {
+        const db = await existingPromise;
+        if (db.objectStoreNames.contains(this.storeName)) {
+          return db;
+        }
+        // Store missing, connection must be closed to allow upgrade
+        db.close();
+        IndexedDBStorage.dbPromises.delete(this.dbName);
+      } catch (error) {
+        IndexedDBStorage.dbPromises.delete(this.dbName);
+      }
     }
 
-    this.dbPromise = new Promise((resolve, reject) => {
+    const newPromise = new Promise<IDBDatabase>((resolve, reject) => {
       // First, open without version to see what we have
       const openRequest = this.idb.open(this.dbName);
 
       openRequest.onerror = (): void => {
-        this.dbPromise = null;
+        IndexedDBStorage.dbPromises.delete(this.dbName);
         reject(openRequest.error ?? new Error('IndexedDB open failed.'));
       };
 
       openRequest.onsuccess = (): void => {
         const db = openRequest.result;
+
+        db.onversionchange = () => {
+          db.close();
+          IndexedDBStorage.dbPromises.delete(this.dbName);
+        };
+
         if (db.objectStoreNames.contains(this.storeName)) {
           resolve(db);
           return;
@@ -82,11 +99,20 @@ class IndexedDBStorage implements ModelCacheStorage {
           }
         };
 
-        upgradeRequest.onsuccess = (): void => resolve(upgradeRequest.result);
+        upgradeRequest.onsuccess = (): void => {
+          const upgradeDb = upgradeRequest.result;
+          upgradeDb.onversionchange = () => {
+            upgradeDb.close();
+            IndexedDBStorage.dbPromises.delete(this.dbName);
+          };
+          resolve(upgradeDb);
+        };
+
         upgradeRequest.onerror = (): void => {
-          this.dbPromise = null;
+          IndexedDBStorage.dbPromises.delete(this.dbName);
           reject(upgradeRequest.error ?? new Error('IndexedDB upgrade failed.'));
         };
+
         upgradeRequest.onblocked = (): void => {
           console.warn('IndexedDB upgrade blocked. Please close other instances of this app.');
         };
@@ -100,7 +126,8 @@ class IndexedDBStorage implements ModelCacheStorage {
       };
     });
 
-    return this.dbPromise;
+    IndexedDBStorage.dbPromises.set(this.dbName, newPromise);
+    return newPromise;
   }
 
   private requestToPromise<T>(request: IDBRequest<T>): Promise<T> {

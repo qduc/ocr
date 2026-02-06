@@ -414,6 +414,8 @@ export function extractTextFromESearchOutput(output: ESearchOCROutput): string {
 export function mapESearchResultToStandard(items: ESearchResultType): Array<{
   text: string;
   confidence: number;
+  quad?: [[number, number], [number, number], [number, number], [number, number]];
+  angle?: number;
   boundingBox: {
     x: number;
     y: number;
@@ -433,6 +435,15 @@ export function mapESearchResultToStandard(items: ESearchResultType): Array<{
     return {
       text: item.text,
       confidence: item.mean,
+      quad: [
+        [item.box[0][0], item.box[0][1]],
+        [item.box[1][0], item.box[1][1]],
+        [item.box[2][0], item.box[2][1]],
+        [item.box[3][0], item.box[3][1]],
+      ],
+      angle:
+        (Math.atan2(item.box[1][1] - item.box[0][1], item.box[1][0] - item.box[0][0]) * 180) /
+        Math.PI,
       boundingBox: {
         x: minX,
         y: minY,
