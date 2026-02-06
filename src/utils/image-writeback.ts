@@ -10,6 +10,8 @@ export interface WriteBackOptions {
   lineSpacing?: number;
   eraseMode?: 'fill' | 'inpaint-auto';
   maskDilationPx?: number;
+  textHalo?: boolean;
+  haloColor?: string;
   onRegionRendered?: (metrics: WriteBackRegionMetrics) => void;
 }
 
@@ -26,6 +28,7 @@ export interface WriteBackRegionMetrics {
   textBaseline: CanvasTextBaseline;
   rotationDegrees: number;
   eraseModeUsed: 'fill' | 'inpaint';
+  textDirection: CanvasDirection;
 }
 
 type WriteBackRegion = (OCRParagraphRegion | OCRWriteBackLineRegion) & { translatedText: string };
@@ -57,6 +60,7 @@ export function renderTranslationToImage(
     lineSpacing = 1.2,
     eraseMode = 'fill',
     maskDilationPx = 2,
+    textHalo = false,
   } = options;
 
   const scaledRegions: ScaledRegion[] = regions.map((region) => {
@@ -117,9 +121,11 @@ export function renderTranslationToImage(
     const cw = region.scaledContainerBox.width;
     const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
     const textColor = getContrastColor(bgColor);
+    const textDirection = inferTextDirection(region.translatedText);
     ctx.fillStyle = textColor;
     ctx.textAlign = textAlign;
     ctx.textBaseline = 'alphabetic';
+    ctx.direction = textDirection;
 
     // Estimate original font size based on median item height
     // We use this as a hard upper bound so the translation doesn't look bigger than original text
@@ -161,12 +167,25 @@ export function renderTranslationToImage(
       ctx.rotate((rotationDegrees * Math.PI) / 180);
       fittingLines.forEach((line, i) => {
         const lineY = firstBaselineY + i * fittedLineMetrics.advance;
+        if (textHalo) {
+          ctx.strokeStyle = options.haloColor ?? getHaloColor(textColor);
+          ctx.lineWidth = Math.max(1, fittingFontSize * 0.08);
+          ctx.lineJoin = 'round';
+          ctx.strokeText(line, drawX - pivotX, lineY - pivotY);
+        }
         ctx.fillText(line, drawX - pivotX, lineY - pivotY);
       });
       ctx.restore();
     } else {
       fittingLines.forEach((line, i) => {
-        ctx.fillText(line, drawX, firstBaselineY + i * fittedLineMetrics.advance);
+        const lineY = firstBaselineY + i * fittedLineMetrics.advance;
+        if (textHalo) {
+          ctx.strokeStyle = options.haloColor ?? getHaloColor(textColor);
+          ctx.lineWidth = Math.max(1, fittingFontSize * 0.08);
+          ctx.lineJoin = 'round';
+          ctx.strokeText(line, drawX, lineY);
+        }
+        ctx.fillText(line, drawX, lineY);
       });
     }
 
@@ -183,6 +202,7 @@ export function renderTranslationToImage(
       textBaseline: 'alphabetic',
       rotationDegrees,
       eraseModeUsed: usingInpaint ? 'inpaint' : 'fill',
+      textDirection,
     });
   }
 }
@@ -468,9 +488,9 @@ function getContrastColor(rgbStr: string): string {
   const match = rgbStr.match(/\d+/g);
   if (!match) return 'black';
   const [r = 0, g = 0, b = 0] = match.map(Number);
-  // YIQ luminance formula
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128 ? 'black' : 'white';
+  const contrastWhite = getContrastRatio(r, g, b, 255, 255, 255);
+  const contrastBlack = getContrastRatio(r, g, b, 0, 0, 0);
+  return contrastWhite >= contrastBlack ? 'white' : 'black';
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, font: string): string[] {
@@ -484,18 +504,19 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number,
       continue;
     }
 
-    const words = paragraph.split(' ');
+    const tokens = tokenizeParagraph(paragraph);
     let currentLine = '';
 
-    for (const word of words) {
-      const testLine = currentLine ? currentLine + ' ' + word : word;
+    for (const token of tokens) {
+      const separator = currentLine && token.joinWithSpace ? ' ' : '';
+      const testLine = currentLine ? currentLine + separator + token.value : token.value;
       const metrics = ctx.measureText(testLine);
 
       if (metrics.width <= maxWidth || !currentLine) {
         currentLine = testLine;
       } else {
         allLines.push(currentLine);
-        currentLine = word;
+        currentLine = token.value;
       }
 
       // Handle extremely long words that exceed maxWidth by themselves
@@ -517,4 +538,56 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number,
   }
 
   return allLines;
+}
+
+function tokenizeParagraph(paragraph: string): Array<{ value: string; joinWithSpace: boolean }> {
+  if (/\s/.test(paragraph)) {
+    return paragraph
+      .split(/\s+/)
+      .filter((token) => token.length > 0)
+      .map((token) => ({ value: token, joinWithSpace: true }));
+  }
+
+  return Array.from(paragraph).map((value) => ({ value, joinWithSpace: false }));
+}
+
+function inferTextDirection(text: string): CanvasDirection {
+  // Basic RTL detection for Arabic/Hebrew ranges.
+  if (/[\u0590-\u08FF]/.test(text)) {
+    return 'rtl';
+  }
+  return 'ltr';
+}
+
+function getHaloColor(textColor: string): string {
+  return textColor === 'black' ? 'white' : 'black';
+}
+
+function getContrastRatio(
+  r1: number,
+  g1: number,
+  b1: number,
+  r2: number,
+  g2: number,
+  b2: number
+): number {
+  const l1 = getRelativeLuminance(r1, g1, b1);
+  const l2 = getRelativeLuminance(r2, g2, b2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function getRelativeLuminance(r: number, g: number, b: number): number {
+  const rs = toLinearChannel(r);
+  const gs = toLinearChannel(g);
+  const bs = toLinearChannel(b);
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function toLinearChannel(channel: number): number {
+  const normalized = channel / 255;
+  return normalized <= 0.03928
+    ? normalized / 12.92
+    : Math.pow((normalized + 0.055) / 1.055, 2.4);
 }

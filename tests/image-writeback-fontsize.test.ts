@@ -13,20 +13,24 @@ describe('renderTranslationToImage Font Selection', () => {
   ): {
     ctx: CanvasRenderingContext2D;
     fillTextMock: ReturnType<typeof vi.fn<(text: string, x: number, y: number) => void>>;
+    strokeTextMock: ReturnType<typeof vi.fn<(text: string, x: number, y: number) => void>>;
     rotateMock: ReturnType<typeof vi.fn<(angle: number) => void>>;
   } => {
     let currentFont = '10px sans-serif';
     let currentFillStyle = 'black';
     let currentTextAlign: CanvasTextAlign = 'start';
     let currentTextBaseline: CanvasTextBaseline = 'alphabetic';
+    let currentDirection: CanvasDirection = 'inherit';
     let currentGlobalAlpha = 1;
     const fillTextMock = vi.fn<(text: string, x: number, y: number) => void>();
+    const strokeTextMock = vi.fn<(text: string, x: number, y: number) => void>();
     const rotateMock = vi.fn<(angle: number) => void>();
     const ctx = {
       canvas: { width: 1000, height: 1000 },
       getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([rgb[0], rgb[1], rgb[2], 255]) })),
       fillRect: vi.fn(),
       fillText: fillTextMock,
+      strokeText: strokeTextMock,
       save: vi.fn(),
       restore: vi.fn(),
       translate: vi.fn(),
@@ -44,10 +48,12 @@ describe('renderTranslationToImage Font Selection', () => {
       get textAlign() { return currentTextAlign; },
       set textBaseline(val: CanvasTextBaseline) { currentTextBaseline = val; },
       get textBaseline() { return currentTextBaseline; },
+      set direction(val: CanvasDirection) { currentDirection = val; },
+      get direction() { return currentDirection; },
       set globalAlpha(val: number) { currentGlobalAlpha = val; },
       get globalAlpha() { return currentGlobalAlpha; },
     } as unknown as CanvasRenderingContext2D;
-    return { ctx, fillTextMock, rotateMock };
+    return { ctx, fillTextMock, strokeTextMock, rotateMock };
   };
 
   it('matches original font size based on median item height', () => {
@@ -260,6 +266,7 @@ describe('renderTranslationToImage Font Selection', () => {
     expect(captured?.textBaseline).toBe('alphabetic');
     expect(captured?.rotationDegrees).toBe(0);
     expect(captured?.eraseModeUsed).toBe('fill');
+    expect(captured?.textDirection).toBe('ltr');
   });
 
   it('keeps font-fit results deterministic for identical inputs', () => {
@@ -399,5 +406,56 @@ describe('renderTranslationToImage Font Selection', () => {
     ).not.toThrow();
 
     expect(captured?.eraseModeUsed).toBe('fill');
+  });
+
+  it('uses script-aware direction and can render RTL text', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'rtl',
+        translatedText: 'مرحبا بالعالم',
+        boundingBox: { x: 10, y: 10, width: 140, height: 30 },
+        items: [{ text: 'rtl', confidence: 1, boundingBox: { x: 10, y: 10, width: 40, height: 20 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    expect(ctx.direction).toBe('rtl');
+  });
+
+  it('supports no-space scripts by splitting into multiple wrapped lines', () => {
+    const { ctx, fillTextMock } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'cjk',
+        translatedText: '漢字仮名交じり文漢字仮名交じり文漢字仮名交じり文',
+        boundingBox: { x: 0, y: 0, width: 70, height: 90 },
+        items: [{ text: 'cjk', confidence: 1, boundingBox: { x: 0, y: 0, width: 20, height: 24 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1);
+
+    expect(fillTextMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('renders halo stroke when enabled', () => {
+    const { ctx, strokeTextMock } = createMockContext();
+    const canvas = { getContext: () => ctx } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'halo',
+        translatedText: 'halo text',
+        boundingBox: { x: 10, y: 10, width: 120, height: 30 },
+        items: [{ text: 'h', confidence: 1, boundingBox: { x: 10, y: 10, width: 20, height: 20 } }],
+      },
+    ];
+
+    renderTranslationToImage(canvas, regions, 1, 1, { textHalo: true });
+
+    expect(strokeTextMock).toHaveBeenCalled();
   });
 });

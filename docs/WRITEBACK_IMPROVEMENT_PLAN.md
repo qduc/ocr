@@ -7,7 +7,7 @@ Improve translated image quality by replacing blocky erase/write behavior with l
 
 ## Progress Snapshot
 - Overall status: `in progress`
-- Current phase: `Phase 4 (ready)`
+- Current phase: `Phase 5 (ready)`
 - Last updated: `2026-02-06`
 
 ## Phase 0: Baseline and Safety Net
@@ -138,20 +138,20 @@ Status: `[x]`
 ---
 
 ## Phase 4: Text Readability and Script Support
-Status: `[ ]`
+Status: `[x]`
 
 ### Scope
 - Improve color and wrapping for real-world multilingual text.
 
 ### Tasks
-- [ ] Replace simple luminance threshold with WCAG contrast-based foreground selection.
-- [ ] Add optional halo/outline stroke for noisy backgrounds.
-- [ ] Improve wrapping/tokenization for non-space-delimited scripts.
-- [ ] Ensure `ctx.direction` and RTL handling paths are covered.
-- [ ] Add tests for:
-  - [ ] contrast target logic
-  - [ ] CJK/RTL wrapping behavior
-  - [ ] halo rendering toggles
+- [x] Replace simple luminance threshold with WCAG contrast-based foreground selection.
+- [x] Add optional halo/outline stroke for noisy backgrounds.
+- [x] Improve wrapping/tokenization for non-space-delimited scripts.
+- [x] Ensure `ctx.direction` and RTL handling paths are covered.
+- [x] Add tests for:
+  - [x] contrast target logic
+  - [x] CJK/RTL wrapping behavior
+  - [x] halo rendering toggles
 
 ### Files
 - `src/utils/image-writeback.ts`
@@ -159,8 +159,8 @@ Status: `[ ]`
 - `tests/translation-ui.test.ts`
 
 ### Exit Criteria
-- [ ] Text remains legible across bright/dark/noisy backgrounds.
-- [ ] Multilingual rendering regressions are covered by tests.
+- [x] Text remains legible across bright/dark/noisy backgrounds.
+- [x] Multilingual rendering regressions are covered by tests.
 
 ---
 
@@ -206,3 +206,4 @@ Run these before marking a phase complete:
 - `2026-02-06`: Completed Phase 1 with line-level write-back regions, geometry-inferred horizontal alignment, and `alphabetic` baseline rendering.
 - `2026-02-06`: Completed Phase 2 by preserving OCR quad/angle metadata and applying canvas rotation during write-back when orientation is available.
 - `2026-02-06`: Completed Phase 3 with deterministic mask generation, OpenCV inpaint attempt (`inpaint-auto`), and safe fallback to fill-based erase.
+- `2026-02-06`: Completed Phase 4 with WCAG contrast selection, RTL direction handling, no-space script wrapping, and optional halo stroke rendering.
