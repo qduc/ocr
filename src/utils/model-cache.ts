@@ -76,7 +76,7 @@ class IndexedDBStorage implements ModelCacheStorage {
       openRequest.onsuccess = (): void => {
         const db = openRequest.result;
 
-        db.onversionchange = () => {
+        db.onversionchange = (): void => {
           db.close();
           IndexedDBStorage.dbPromises.delete(this.dbName);
         };
@@ -101,7 +101,7 @@ class IndexedDBStorage implements ModelCacheStorage {
 
         upgradeRequest.onsuccess = (): void => {
           const upgradeDb = upgradeRequest.result;
-          upgradeDb.onversionchange = () => {
+          upgradeDb.onversionchange = (): void => {
             upgradeDb.close();
             IndexedDBStorage.dbPromises.delete(this.dbName);
           };

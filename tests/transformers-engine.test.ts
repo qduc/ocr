@@ -4,27 +4,41 @@ import { TransformersEngine } from '../src/engines/transformers-engine';
 import { pipeline, env } from '@xenova/transformers';
 
 if (typeof ImageData === 'undefined') {
-  global.ImageData = class ImageData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+  (global as any).ImageData = class ImageData {
     data: Uint8ClampedArray;
     width: number;
     height: number;
-    constructor(arg1: any, arg2: any, arg3?: any) {
+    constructor(data: Uint8ClampedArray, width: number, height: number);
+    constructor(width: number, height: number);
+    constructor(arg1: Uint8ClampedArray | number, arg2: number, arg3?: number) {
       if (arg3 !== undefined) {
-        this.data = arg1;
+        this.data = arg1 as Uint8ClampedArray;
         this.width = arg2;
         this.height = arg3;
       } else {
-        this.data = new Uint8ClampedArray(arg1 * arg2 * 4);
-        this.width = arg1;
-        this.height = arg2;
+        const w = arg1 as number;
+        const h = arg2;
+        this.data = new Uint8ClampedArray(w * h * 4);
+        this.width = w;
+        this.height = h;
       }
     }
-  } as any;
+  };
 }
 
 vi.mock('@xenova/transformers', () => ({
   pipeline: vi.fn(),
-  env: { useBrowserCache: false },
+  env: {
+    useBrowserCache: false,
+    backends: {
+      onnx: {
+        wasm: {
+          wasmPaths: undefined,
+        },
+      },
+    },
+  },
   RawImage: class {
     constructor(public data: unknown, public width: number, public height: number, public channels: number) {}
     rgb(): this {
@@ -37,6 +51,7 @@ vi.mock('@/utils/model-cache', () => ({
   ModelCache: vi.fn().mockImplementation(() => ({
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue(undefined),
+    loadOrFetch: vi.fn().mockImplementation((_key: string, fetcher: () => Promise<ArrayBuffer>) => fetcher()),
   })),
 }));
 
@@ -69,7 +84,7 @@ vi.mock('@qduc/easyocr-core', () => ({
     centerY: 5,
     height: 10
   }]),
-  resolveOcrOptions: vi.fn().mockImplementation((opt) => opt),
+  resolveOcrOptions: vi.fn().mockImplementation((opt: unknown) => opt),
 }));
 
 const pipelineMock = vi.mocked(pipeline);
@@ -90,7 +105,7 @@ describe('TransformersEngine property tests', () => {
 
         expect(pipelineMock).toHaveBeenCalledWith(
           'image-to-text',
-          'Xenova/trocr-base-printed',
+          'Xenova/trocr-small-printed',
           expect.objectContaining({
             device: webgpuAvailable ? 'webgpu' : 'cpu',
           })
@@ -125,9 +140,11 @@ describe('TransformersEngine unit tests', () => {
 
   it('invokes progress callback during load', async () => {
     const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'ok' }]);
-    pipelineMock.mockImplementationOnce((_task, _model, options): Promise<unknown> => {
-      options?.progress_callback?.({ status: 'loading', progress: 0.3 });
-      return Promise.resolve(pipelineInstance);
+    pipelineMock.mockImplementationOnce((_task, _model, options) => {
+      const opt = options as { progress_callback?: (data: unknown) => void };
+      opt?.progress_callback?.({ status: 'loading', progress: 0.3 });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any
+      return Promise.resolve(pipelineInstance) as any;
     });
 
     const progressSpy = vi.fn();
@@ -140,7 +157,8 @@ describe('TransformersEngine unit tests', () => {
   it('processes images and returns text', async () => {
     const pipelineInstance = vi.fn().mockResolvedValue([{ generated_text: 'OCR' }]);
     pipelineMock.mockResolvedValueOnce(pipelineInstance);
-    global.createImageBitmap = vi.fn().mockResolvedValue({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    (global as any).createImageBitmap = vi.fn().mockResolvedValue({
       width: 10,
       height: 10,
       close: vi.fn(),
@@ -149,7 +167,7 @@ describe('TransformersEngine unit tests', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       drawImage: vi.fn(),
       getImageData: vi.fn().mockReturnValue(new ImageData(10, 10)),
-    } as any);
+    } as unknown as CanvasRenderingContext2D);
 
     const engine = new TransformersEngine({ webgpu: false });
     await engine.load();
