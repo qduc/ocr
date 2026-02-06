@@ -8,6 +8,8 @@ export interface WriteBackOptions {
   fillOpacity?: number;
   paddingFactor?: number; // padding inside the bounding box (default 0.1)
   lineSpacing?: number;
+  eraseMode?: 'fill' | 'inpaint-auto';
+  maskDilationPx?: number;
   onRegionRendered?: (metrics: WriteBackRegionMetrics) => void;
 }
 
@@ -23,9 +25,14 @@ export interface WriteBackRegionMetrics {
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
   rotationDegrees: number;
+  eraseModeUsed: 'fill' | 'inpaint';
 }
 
 type WriteBackRegion = (OCRParagraphRegion | OCRWriteBackLineRegion) & { translatedText: string };
+type ScaledRegion = WriteBackRegion & {
+  scaledBox: { x: number; y: number; width: number; height: number };
+  scaledContainerBox: { x: number; width: number };
+};
 
 /**
  * Renders translated text onto a canvas containing the original image.
@@ -48,33 +55,67 @@ export function renderTranslationToImage(
     fillOpacity = 1.0,
     paddingFactor = 0.1,
     lineSpacing = 1.2,
+    eraseMode = 'fill',
+    maskDilationPx = 2,
   } = options;
 
-  for (const [regionIndex, region] of regions.entries()) {
+  const scaledRegions: ScaledRegion[] = regions.map((region) => {
     const { x, y, width, height } = region.boundingBox;
+    const containerBox = 'containerBox' in region ? region.containerBox : region.boundingBox;
+    return {
+      ...region,
+      scaledBox: {
+        x: x * scaleX,
+        y: y * scaleY,
+        width: width * scaleX,
+        height: height * scaleY,
+      },
+      scaledContainerBox: {
+        x: containerBox.x * scaleX,
+        width: containerBox.width * scaleX,
+      },
+    };
+  });
 
-    // Scale coordinates to original image size
-    const sx = x * scaleX;
-    const sy = y * scaleY;
-    const sw = width * scaleX;
-    const sh = height * scaleY;
+  const usingInpaint =
+    eraseMode === 'inpaint-auto' &&
+    tryInpaintWithOpenCv(canvas, buildWriteBackMask(canvas.width, canvas.height, scaledRegions, maskDilationPx));
+
+  for (const [regionIndex, region] of scaledRegions.entries()) {
+    const sx = region.scaledBox.x;
+    const sy = region.scaledBox.y;
+    const sw = region.scaledBox.width;
+    const sh = region.scaledBox.height;
 
     if (sw <= 0 || sh <= 0) continue;
 
-    // 1. Sample background color
-    const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
-
-    // 2. Clear original text with solid fill
-    ctx.globalAlpha = fillOpacity;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(sx, sy, sw, sh);
-    ctx.globalAlpha = 1.0;
+    if (!usingInpaint) {
+      // Clear original text with solid fill as fallback path.
+      const fallbackBg = sampleBackgroundColor(ctx, sx, sy, sw, sh);
+      ctx.globalAlpha = fillOpacity;
+      ctx.fillStyle = fallbackBg;
+      ctx.fillRect(sx, sy, sw, sh);
+      ctx.globalAlpha = 1.0;
+    }
 
     // 3. Draw translated text
-    const containerBox = 'containerBox' in region ? region.containerBox : region.boundingBox;
-    const cx = containerBox.x * scaleX;
-    const cw = containerBox.width * scaleX;
-    const textAlign = inferTextAlign(region.boundingBox, containerBox);
+    const textAlign = inferTextAlign(
+      {
+        x: sx,
+        y: sy,
+        width: sw,
+        height: sh,
+      },
+      {
+        x: region.scaledContainerBox.x,
+        y: sy,
+        width: region.scaledContainerBox.width,
+        height: sh,
+      }
+    );
+    const cx = region.scaledContainerBox.x;
+    const cw = region.scaledContainerBox.width;
+    const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
     const textColor = getContrastColor(bgColor);
     ctx.fillStyle = textColor;
     ctx.textAlign = textAlign;
@@ -141,6 +182,7 @@ export function renderTranslationToImage(
       textAlign,
       textBaseline: 'alphabetic',
       rotationDegrees,
+      eraseModeUsed: usingInpaint ? 'inpaint' : 'fill',
     });
   }
 }
@@ -293,6 +335,96 @@ function normalizeAngle(angle: number): number {
     normalized += 180;
   }
   return normalized;
+}
+
+export function buildWriteBackMask(
+  width: number,
+  height: number,
+  regions: Array<{ scaledBox: { x: number; y: number; width: number; height: number } }>,
+  dilationPx: number
+): Uint8ClampedArray {
+  const mask = new Uint8ClampedArray(width * height);
+  const dilation = Math.max(0, Math.floor(dilationPx));
+
+  for (const region of regions) {
+    const x0 = Math.max(0, Math.floor(region.scaledBox.x) - dilation);
+    const y0 = Math.max(0, Math.floor(region.scaledBox.y) - dilation);
+    const x1 = Math.min(width - 1, Math.ceil(region.scaledBox.x + region.scaledBox.width) + dilation);
+    const y1 = Math.min(height - 1, Math.ceil(region.scaledBox.y + region.scaledBox.height) + dilation);
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        mask[y * width + x] = 255;
+      }
+    }
+  }
+
+  return mask;
+}
+
+function tryInpaintWithOpenCv(
+  canvas: HTMLCanvasElement,
+  mask: Uint8ClampedArray
+): boolean {
+  const cvMaybe = (globalThis as { cv?: unknown }).cv;
+  if (!cvMaybe || typeof cvMaybe !== 'object') {
+    return false;
+  }
+
+  const cv = cvMaybe as {
+    imread?: (source: HTMLCanvasElement, mode?: number) => unknown;
+    imshow?: (target: HTMLCanvasElement, mat: unknown) => void;
+    inpaint?: (src: unknown, mask: unknown, dst: unknown, radius: number, method: number) => void;
+    Mat?: new () => { delete?: () => void };
+    INPAINT_TELEA?: number;
+    IMREAD_GRAYSCALE?: number;
+  };
+
+  if (
+    typeof cv.imread !== 'function' ||
+    typeof cv.imshow !== 'function' ||
+    typeof cv.inpaint !== 'function' ||
+    typeof cv.Mat !== 'function'
+  ) {
+    return false;
+  }
+
+  let src: { delete?: () => void } | undefined;
+  let maskMat: { delete?: () => void } | undefined;
+  let dst: { delete?: () => void } | undefined;
+  let maskCanvas: HTMLCanvasElement | undefined;
+
+  try {
+    maskCanvas = document.createElement('canvas');
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    const maskCtx = maskCanvas.getContext('2d');
+    if (!maskCtx) return false;
+
+    const rgba = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+    for (let i = 0; i < mask.length; i++) {
+      const value = mask[i] ?? 0;
+      const offset = i * 4;
+      rgba[offset] = value;
+      rgba[offset + 1] = value;
+      rgba[offset + 2] = value;
+      rgba[offset + 3] = 255;
+    }
+    maskCtx.putImageData(new ImageData(rgba, canvas.width, canvas.height), 0, 0);
+
+    src = cv.imread(canvas) as { delete?: () => void };
+    maskMat = cv.imread(maskCanvas, cv.IMREAD_GRAYSCALE ?? 0) as { delete?: () => void };
+    dst = new cv.Mat();
+    cv.inpaint(src, maskMat, dst, 3, cv.INPAINT_TELEA ?? 1);
+    cv.imshow(canvas, dst);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    src?.delete?.();
+    maskMat?.delete?.();
+    dst?.delete?.();
+  }
 }
 
 function getMedian(values: number[]): number {

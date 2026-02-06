@@ -284,7 +284,9 @@ export const createTranslationController = (
       const scaleX = originalImageData.width / lastProcessedWidth;
       const scaleY = originalImageData.height / lastProcessedHeight;
 
-      renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY);
+      renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY, {
+        eraseMode: 'inpaint-auto',
+      });
 
       setTranslateStatus('Exporting...');
       const blob = await new Promise<Blob>((resolve, reject) => {

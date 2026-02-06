@@ -7,7 +7,7 @@ Improve translated image quality by replacing blocky erase/write behavior with l
 
 ## Progress Snapshot
 - Overall status: `in progress`
-- Current phase: `Phase 3 (ready)`
+- Current phase: `Phase 4 (ready)`
 - Last updated: `2026-02-06`
 
 ## Phase 0: Baseline and Safety Net
@@ -108,21 +108,21 @@ Status: `[x]`
 ---
 
 ## Phase 3: Better Erase/Restore (Mask + Inpainting)
-Status: `[ ]`
+Status: `[x]`
 
 ### Scope
 - Replace hard rectangle fills with mask-based background restoration.
 
 ### Tasks
-- [ ] Build text masks from OCR regions (line/word-level), with configurable dilation.
-- [ ] Add an inpainting path:
-  - [ ] preferred: OpenCV.js Telea
-  - [ ] fallback: current fill method when inpainting unavailable
-- [ ] Add a feature flag to toggle inpainting mode.
-- [ ] Add tests for:
-  - [ ] mask creation determinism
-  - [ ] graceful fallback path
-  - [ ] no crash when OpenCV runtime is unavailable
+- [x] Build text masks from OCR regions (line/word-level), with configurable dilation.
+- [x] Add an inpainting path:
+  - [x] preferred: OpenCV.js Telea
+  - [x] fallback: current fill method when inpainting unavailable
+- [x] Add a feature flag to toggle inpainting mode.
+- [x] Add tests for:
+  - [x] mask creation determinism
+  - [x] graceful fallback path
+  - [x] no crash when OpenCV runtime is unavailable
 
 ### Files
 - `src/utils/image-writeback.ts`
@@ -132,8 +132,8 @@ Status: `[ ]`
 - `tests/image-writeback-fontsize.test.ts`
 
 ### Exit Criteria
-- [ ] Background seams/artifacts are substantially reduced on textured backgrounds.
-- [ ] Fallback behavior remains stable.
+- [x] Background seams/artifacts are substantially reduced on textured backgrounds.
+- [x] Fallback behavior remains stable.
 
 ---
 
@@ -205,3 +205,4 @@ Run these before marking a phase complete:
 - `2026-02-06`: Validation run completed (`npm test`, `npm run typecheck`, `npm run lint`), with only pre-existing lint warnings in `src/utils/model-cache.ts`.
 - `2026-02-06`: Completed Phase 1 with line-level write-back regions, geometry-inferred horizontal alignment, and `alphabetic` baseline rendering.
 - `2026-02-06`: Completed Phase 2 by preserving OCR quad/angle metadata and applying canvas rotation during write-back when orientation is available.
+- `2026-02-06`: Completed Phase 3 with deterministic mask generation, OpenCV inpaint attempt (`inpaint-auto`), and safe fallback to fill-based erase.

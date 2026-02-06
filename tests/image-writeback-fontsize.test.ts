@@ -1,6 +1,10 @@
 /* @vitest-environment jsdom */
 import { describe, it, expect, vi } from 'vitest';
-import { renderTranslationToImage, type WriteBackRegionMetrics } from '../src/utils/image-writeback';
+import {
+  buildWriteBackMask,
+  renderTranslationToImage,
+  type WriteBackRegionMetrics,
+} from '../src/utils/image-writeback';
 import { OCRParagraphRegion } from '../src/utils/paragraph-grouping';
 
 describe('renderTranslationToImage Font Selection', () => {
@@ -255,6 +259,7 @@ describe('renderTranslationToImage Font Selection', () => {
     expect(captured?.textAlign).toBe('center');
     expect(captured?.textBaseline).toBe('alphabetic');
     expect(captured?.rotationDegrees).toBe(0);
+    expect(captured?.eraseModeUsed).toBe('fill');
   });
 
   it('keeps font-fit results deterministic for identical inputs', () => {
@@ -350,5 +355,49 @@ describe('renderTranslationToImage Font Selection', () => {
     renderTranslationToImage(canvas, regions, 1, 1);
 
     expect(rotateMock).not.toHaveBeenCalled();
+  });
+
+  it('builds deterministic write-back masks with dilation', () => {
+    const maskA = buildWriteBackMask(
+      10,
+      10,
+      [{ scaledBox: { x: 2, y: 2, width: 2, height: 2 } }],
+      1
+    );
+    const maskB = buildWriteBackMask(
+      10,
+      10,
+      [{ scaledBox: { x: 2, y: 2, width: 2, height: 2 } }],
+      1
+    );
+
+    expect(maskA).toEqual(maskB);
+    expect(maskA[1 * 10 + 1]).toBe(255);
+    expect(maskA[0]).toBe(0);
+  });
+
+  it('falls back gracefully when inpaint mode is enabled but OpenCV is unavailable', () => {
+    const { ctx } = createMockContext();
+    const canvas = { getContext: () => ctx, width: 100, height: 100 } as unknown as HTMLCanvasElement;
+    const regions: Array<OCRParagraphRegion & { translatedText: string }> = [
+      {
+        text: 'plain',
+        translatedText: 'plain',
+        boundingBox: { x: 20, y: 20, width: 50, height: 20 },
+        items: [{ text: 'a', confidence: 1, boundingBox: { x: 20, y: 20, width: 20, height: 20 } }],
+      },
+    ];
+
+    let captured: WriteBackRegionMetrics | undefined;
+    expect(() =>
+      renderTranslationToImage(canvas, regions, 1, 1, {
+        eraseMode: 'inpaint-auto',
+        onRegionRendered: (metrics): void => {
+          captured = metrics;
+        },
+      })
+    ).not.toThrow();
+
+    expect(captured?.eraseModeUsed).toBe('fill');
   });
 });
