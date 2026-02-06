@@ -6,8 +6,8 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done, `[!]` blocked
 Improve translated image quality by replacing blocky erase/write behavior with layout-aware rendering, stronger background restoration, and better typography.
 
 ## Progress Snapshot
-- Overall status: `in progress`
-- Current phase: `Phase 5 (ready)`
+- Overall status: `completed`
+- Current phase: `Phase 5 (completed)`
 - Last updated: `2026-02-06`
 
 ## Phase 0: Baseline and Safety Net
@@ -165,19 +165,19 @@ Status: `[x]`
 ---
 
 ## Phase 5: UX, Tuning, and Documentation
-Status: `[ ]`
+Status: `[x]`
 
 ### Scope
 - Productize improvements and document configuration/limits.
 
 ### Tasks
-- [ ] Add write-back quality presets (for example: `fast`, `balanced`, `high-quality`).
-- [ ] Expose key settings in UI (if desired): inpainting mode, text halo, aggressiveness.
-- [ ] Add performance notes and memory considerations.
-- [ ] Update docs:
-  - [ ] `docs/SPECIFICATION.md`
-  - [ ] `docs/DECISION_LOG.md`
-  - [ ] `README.md`
+- [x] Add write-back quality presets (for example: `fast`, `balanced`, `high-quality`).
+- [x] Expose key settings in UI (if desired): inpainting mode, text halo, aggressiveness.
+- [x] Add performance notes and memory considerations.
+- [x] Update docs:
+  - [x] `docs/SPECIFICATION.md`
+  - [x] `docs/DECISION_LOG.md`
+  - [x] `README.md`
 
 ### Files
 - `src/translation-controller.ts`
@@ -188,8 +188,8 @@ Status: `[ ]`
 - `docs/DECISION_LOG.md`
 
 ### Exit Criteria
-- [ ] Team can choose quality/performance profile intentionally.
-- [ ] Documentation matches shipped behavior.
+- [x] Team can choose quality/performance profile intentionally.
+- [x] Documentation matches shipped behavior.
 
 ---
 
@@ -207,3 +207,4 @@ Run these before marking a phase complete:
 - `2026-02-06`: Completed Phase 2 by preserving OCR quad/angle metadata and applying canvas rotation during write-back when orientation is available.
 - `2026-02-06`: Completed Phase 3 with deterministic mask generation, OpenCV inpaint attempt (`inpaint-auto`), and safe fallback to fill-based erase.
 - `2026-02-06`: Completed Phase 4 with WCAG contrast selection, RTL direction handling, no-space script wrapping, and optional halo stroke rendering.
+- `2026-02-06`: Completed Phase 5 with UI write-back quality presets and documentation updates for profile behavior and tradeoffs.

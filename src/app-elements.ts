@@ -32,6 +32,7 @@ export interface AppElements {
   translateResult: HTMLTextAreaElement;
   translateFrom: HTMLSelectElement;
   translateTo: HTMLSelectElement;
+  writebackQuality: HTMLSelectElement;
   translateRunButton: HTMLButtonElement;
   translateWritebackButton: HTMLButtonElement;
   translateCopyButton: HTMLButtonElement;
@@ -79,6 +80,7 @@ export const getAppElements = (root: HTMLElement): AppElements => {
   const translateResult = root.querySelector<HTMLTextAreaElement>('#translate-result');
   const translateFrom = root.querySelector<HTMLSelectElement>('#translate-from');
   const translateTo = root.querySelector<HTMLSelectElement>('#translate-to');
+  const writebackQuality = root.querySelector<HTMLSelectElement>('#writeback-quality');
   const translateRunButton = root.querySelector<HTMLButtonElement>('#translate-run');
   const translateWritebackButton = root.querySelector<HTMLButtonElement>('#translate-writeback');
   const translateCopyButton = root.querySelector<HTMLButtonElement>('#translate-copy');
@@ -125,6 +127,7 @@ export const getAppElements = (root: HTMLElement): AppElements => {
     !translateResult ||
     !translateFrom ||
     !translateTo ||
+    !writebackQuality ||
     !translateRunButton ||
     !translateWritebackButton ||
     !translateCopyButton ||
@@ -174,6 +177,7 @@ export const getAppElements = (root: HTMLElement): AppElements => {
     translateResult,
     translateFrom,
     translateTo,
+    writebackQuality,
     translateRunButton,
     translateWritebackButton,
     translateCopyButton,

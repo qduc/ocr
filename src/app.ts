@@ -59,6 +59,7 @@ export interface AppInstance {
     translateResult: HTMLTextAreaElement;
     translateFrom: HTMLSelectElement;
     translateTo: HTMLSelectElement;
+    writebackQuality: HTMLSelectElement;
     translateRunButton: HTMLButtonElement;
     translateWritebackButton: HTMLButtonElement;
     translateCopyButton: HTMLButtonElement;
@@ -112,6 +113,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     translateResult,
     translateFrom,
     translateTo,
+    writebackQuality,
     translateRunButton,
     translateWritebackButton,
     translateCopyButton,
@@ -229,6 +231,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translateResult,
       translateFrom,
       translateTo,
+      writebackQuality,
       translateRunButton,
       translateWritebackButton,
       translateCopyButton,
@@ -649,6 +652,7 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       translateResult,
       translateFrom,
       translateTo,
+      writebackQuality,
       translateRunButton,
       translateWritebackButton,
       translateCopyButton,

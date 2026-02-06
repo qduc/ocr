@@ -602,6 +602,18 @@ MVP is complete when:
 
 ## Changes Log
 
+### 2026-02-06: Translated Image Write-Back Quality Pipeline
+
+**Decision**: Ship phased write-back improvements with selectable quality presets (`fast`, `balanced`, `high-quality`).
+
+**Rationale**:
+- Earlier write-back used rectangular fill + center text rendering, which produced visible artifacts.
+- Geometry-aware line rendering and baseline placement improve natural layout retention.
+- Optional OpenCV inpainting provides better background restoration when runtime is available, with stable fallback behavior when not.
+- WCAG-based contrast selection, RTL direction handling, and optional halo stroke improve multilingual readability.
+
+**Status**: ✅ Implemented across `src/utils/image-writeback.ts`, `src/translation-controller.ts`, and related tests.
+
 ### 2026-01-17: eSearch-OCR Model Caching
 
 **Decision**: Implement persistent caching for eSearch-OCR models using `ModelCache` (IndexedDB).

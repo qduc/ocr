@@ -122,6 +122,14 @@ export const getAppTemplate = (): string => `
                 <label for="translate-to">To</label>
                 <select id="translate-to"></select>
               </div>
+              <div class="translate-select">
+                <label for="writeback-quality">Write-back</label>
+                <select id="writeback-quality">
+                  <option value="balanced">Balanced</option>
+                  <option value="fast">Fast</option>
+                  <option value="high-quality">High quality</option>
+                </select>
+              </div>
               <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>

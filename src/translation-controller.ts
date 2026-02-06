@@ -3,7 +3,7 @@ import type { ITextTranslator } from '@/types/translation';
 import type { ImageProcessor } from '@/utils/image-processor';
 import { logError } from '@/utils/error-handling';
 import { groupOcrItemsIntoWriteBackLines } from '@/utils/paragraph-grouping';
-import { renderTranslationToImage } from '@/utils/image-writeback';
+import { renderTranslationToImage, type WriteBackOptions } from '@/utils/image-writeback';
 import { BERGAMOT_LANGUAGES, DEFAULT_TRANSLATION_TO } from '@/utils/translation-languages';
 import { mapOcrLanguageToBergamot } from '@/utils/ocr-language-to-bergamot';
 
@@ -11,6 +11,7 @@ export interface TranslationElements {
   translateResult: HTMLTextAreaElement;
   translateFrom: HTMLSelectElement;
   translateTo: HTMLSelectElement;
+  writebackQuality: HTMLSelectElement;
   translateRunButton: HTMLButtonElement;
   translateWritebackButton: HTMLButtonElement;
   translateCopyButton: HTMLButtonElement;
@@ -42,6 +43,9 @@ export interface TranslationController {
   onOcrUpdated: () => void;
 }
 
+type WritebackQualityPreset = 'fast' | 'balanced' | 'high-quality';
+const DEFAULT_WRITEBACK_QUALITY: WritebackQualityPreset = 'balanced';
+
 export const createTranslationController = (
   elements: TranslationElements,
   context: TranslationContext
@@ -50,6 +54,7 @@ export const createTranslationController = (
     translateResult,
     translateFrom,
     translateTo,
+    writebackQuality,
     translateRunButton,
     translateWritebackButton,
     translateCopyButton,
@@ -133,6 +138,26 @@ export const createTranslationController = (
     }
   };
 
+  const getStoredWritebackQuality = (): WritebackQualityPreset => {
+    try {
+      const stored = localStorage.getItem('translate.writebackQuality');
+      if (stored === 'fast' || stored === 'balanced' || stored === 'high-quality') {
+        return stored;
+      }
+    } catch {
+      return DEFAULT_WRITEBACK_QUALITY;
+    }
+    return DEFAULT_WRITEBACK_QUALITY;
+  };
+
+  const setStoredWritebackQuality = (value: WritebackQualityPreset): void => {
+    try {
+      localStorage.setItem('translate.writebackQuality', value);
+    } catch {
+      // Ignore storage failures in restricted contexts.
+    }
+  };
+
   const populateTranslateLanguages = (): void => {
     const sorted = Object.entries(BERGAMOT_LANGUAGES).sort((a, b) => a[1].localeCompare(b[1]));
     translateFrom.innerHTML = '';
@@ -182,6 +207,7 @@ export const createTranslationController = (
       translateTo.value = DEFAULT_TRANSLATION_TO;
       setStoredTranslationLanguage('to', translateTo.value);
     }
+    writebackQuality.value = getStoredWritebackQuality();
 
     setTranslateStatus('Ready to translate.');
     setTranslateError();
@@ -284,9 +310,25 @@ export const createTranslationController = (
       const scaleX = originalImageData.width / lastProcessedWidth;
       const scaleY = originalImageData.height / lastProcessedHeight;
 
-      renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY, {
-        eraseMode: 'inpaint-auto',
-      });
+      const preset = (writebackQuality.value as WritebackQualityPreset) || DEFAULT_WRITEBACK_QUALITY;
+      const writebackOptions: Record<WritebackQualityPreset, WriteBackOptions> = {
+        fast: {
+          eraseMode: 'fill',
+          textHalo: false,
+          maskDilationPx: 0,
+        },
+        balanced: {
+          eraseMode: 'inpaint-auto',
+          textHalo: false,
+          maskDilationPx: 2,
+        },
+        'high-quality': {
+          eraseMode: 'inpaint-auto',
+          textHalo: true,
+          maskDilationPx: 3,
+        },
+      };
+      renderTranslationToImage(canvas, translatedRegions, scaleX, scaleY, writebackOptions[preset]);
 
       setTranslateStatus('Exporting...');
       const blob = await new Promise<Blob>((resolve, reject) => {
@@ -314,6 +356,10 @@ export const createTranslationController = (
 
   translateTo.addEventListener('change', (): void => {
     setStoredTranslationLanguage('to', translateTo.value);
+  });
+
+  writebackQuality.addEventListener('change', (): void => {
+    setStoredWritebackQuality(writebackQuality.value as WritebackQualityPreset);
   });
 
   translateSwapButton.addEventListener('click', (): void => {
