@@ -14,7 +14,7 @@ export interface TranslationElements {
   translateResult: HTMLTextAreaElement;
   translateFrom: HTMLSelectElement;
   translateTo: HTMLSelectElement;
-  writebackQuality: HTMLSelectElement;
+
   translateRunButton: HTMLButtonElement;
   translateWritebackButton: HTMLButtonElement;
   translateCopyButton: HTMLButtonElement;
@@ -57,7 +57,6 @@ export const createTranslationController = (
     translateResult,
     translateFrom,
     translateTo,
-    writebackQuality,
     translateRunButton,
     translateWritebackButton,
     translateCopyButton,
@@ -141,25 +140,7 @@ export const createTranslationController = (
     }
   };
 
-  const getStoredWritebackQuality = (): WritebackQualityPreset => {
-    try {
-      const stored = localStorage.getItem('translate.writebackQuality');
-      if (stored === 'fast' || stored === 'balanced' || stored === 'high-quality') {
-        return stored;
-      }
-    } catch {
-      return DEFAULT_WRITEBACK_QUALITY;
-    }
-    return DEFAULT_WRITEBACK_QUALITY;
-  };
 
-  const setStoredWritebackQuality = (value: WritebackQualityPreset): void => {
-    try {
-      localStorage.setItem('translate.writebackQuality', value);
-    } catch {
-      // Ignore storage failures in restricted contexts.
-    }
-  };
 
   const populateTranslateLanguages = (): void => {
     const sorted = Object.entries(BERGAMOT_LANGUAGES).sort((a, b) => a[1].localeCompare(b[1]));
@@ -210,7 +191,7 @@ export const createTranslationController = (
       translateTo.value = DEFAULT_TRANSLATION_TO;
       setStoredTranslationLanguage('to', translateTo.value);
     }
-    writebackQuality.value = getStoredWritebackQuality();
+
 
     setTranslateStatus('Ready to translate.');
     setTranslateError();
@@ -321,7 +302,7 @@ export const createTranslationController = (
       const scaleX = originalImageData.width / lastProcessedWidth;
       const scaleY = originalImageData.height / lastProcessedHeight;
 
-      const preset = (writebackQuality.value as WritebackQualityPreset) || DEFAULT_WRITEBACK_QUALITY;
+      const preset = DEFAULT_WRITEBACK_QUALITY;
       const writebackOptions: Record<WritebackQualityPreset, WriteBackOptions> = {
         fast: {
           eraseMode: 'fill',
@@ -369,9 +350,7 @@ export const createTranslationController = (
     setStoredTranslationLanguage('to', translateTo.value);
   });
 
-  writebackQuality.addEventListener('change', (): void => {
-    setStoredWritebackQuality(writebackQuality.value as WritebackQualityPreset);
-  });
+
 
   translateSwapButton.addEventListener('click', (): void => {
     const fromValue = translateFrom.value;
