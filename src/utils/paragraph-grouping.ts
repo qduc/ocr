@@ -1,11 +1,12 @@
 import { OCRItem } from '../types/ocr-engine';
+import { getMedian } from './math-utils';
 
 /**
  * Thresholds for grouping OCR items into lines and paragraphs.
  *
  * LINE_CENTER_THRESHOLD: Max vertical distance between centers as a fraction of line height.
  * LINE_OVERLAP_THRESHOLD: Min vertical overlap as a fraction of item height.
- * PARAGRAPH_GAP_THRESHOLD: Max vertical gap between lines as a fraction of average line height.
+ * PARAGRAPH_GAP_THRESHOLD: Max vertical gap between lines as a fraction of median line height.
  */
 const LINE_CENTER_THRESHOLD = 0.4;
 const LINE_OVERLAP_THRESHOLD = 0.5;
@@ -40,20 +41,27 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
     return aCenterY - bCenterY;
   });
 
-  const lines: OCRItem[][] = [];
+  const lineGroups: LineGroup[] = [];
   for (const item of sortedItems) {
     let placed = false;
-    for (const line of lines) {
-      if (isInSameLine(item, line[0]!)) {
-        line.push(item);
+    for (const group of lineGroups) {
+      if (fitsInLineGroup(item, group)) {
+        group.items.push(item);
+        group.minY = Math.min(group.minY, item.boundingBox.y);
+        group.maxY = Math.max(group.maxY, item.boundingBox.y + item.boundingBox.height);
         placed = true;
         break;
       }
     }
     if (!placed) {
-      lines.push([item]);
+      lineGroups.push({
+        items: [item],
+        minY: item.boundingBox.y,
+        maxY: item.boundingBox.y + item.boundingBox.height,
+      });
     }
   }
+  const lines = lineGroups.map(g => g.items);
 
   // 2. Sort lines by Y and sort items within lines by X
   lines.forEach((line) => line.sort((a, b) => a.boundingBox.x - b.boundingBox.x));
@@ -75,7 +83,7 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
     const maxY = Math.max(...line.map(i => i.boundingBox.y + i.boundingBox.height));
     return maxY - minY;
   });
-  const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+  const medianLineHeight = getMedian(lineHeights);
 
   for (let i = 0; i < lines.length; i++) {
     const lineText = lines[i]!.map((item) => item.text).join(' ');
@@ -92,9 +100,9 @@ export function buildParagraphTextForTranslation(items: OCRItem[]): string {
     const currLineTop = Math.min(...currLine.map(item => item.boundingBox.y));
     const gap = currLineTop - prevLineBottom;
 
-    // Threshold: if gap is more than threshold * average line height, start new paragraph
+    // Threshold: if gap is more than threshold * median line height, start new paragraph
     // Or if the gap is negative (lines overlap horizontally but were split vertically), keep them together
-    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
+    if (gap > medianLineHeight * PARAGRAPH_GAP_THRESHOLD) {
       paragraphs.push(currentParagraph);
       currentParagraph = [lineText];
     } else {
@@ -152,20 +160,27 @@ export function groupOcrItemsIntoLines(items: OCRItem[]): OCRLine[] {
     return aCenterY - bCenterY;
   });
 
-  const lineGroups: OCRItem[][] = [];
+  const lineGroupsRaw: LineGroup[] = [];
   for (const item of sortedItems) {
     let placed = false;
-    for (const line of lineGroups) {
-      if (isInSameLine(item, line[0]!)) {
-        line.push(item);
+    for (const group of lineGroupsRaw) {
+      if (fitsInLineGroup(item, group)) {
+        group.items.push(item);
+        group.minY = Math.min(group.minY, item.boundingBox.y);
+        group.maxY = Math.max(group.maxY, item.boundingBox.y + item.boundingBox.height);
         placed = true;
         break;
       }
     }
     if (!placed) {
-      lineGroups.push([item]);
+      lineGroupsRaw.push({
+        items: [item],
+        minY: item.boundingBox.y,
+        maxY: item.boundingBox.y + item.boundingBox.height,
+      });
     }
   }
+  const lineGroups = lineGroupsRaw.map(g => g.items);
 
   // 2. Sort items within lines by X and build OCRLine objects
   return lineGroups
@@ -272,7 +287,7 @@ function groupLinesIntoParagraphs(lines: OCRLine[]): OCRLine[][] {
   }
 
   const lineHeights = lines.map((l) => l.boundingBox.height);
-  const avgLineHeight = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+  const medianLineHeight = getMedian(lineHeights);
   const paragraphs: OCRLine[][] = [];
   let currentLines: OCRLine[] = [lines[0]!];
 
@@ -281,7 +296,7 @@ function groupLinesIntoParagraphs(lines: OCRLine[]): OCRLine[][] {
     const prevLine = lines[i - 1]!;
     const gap = line.boundingBox.y - (prevLine.boundingBox.y + prevLine.boundingBox.height);
 
-    if (gap > avgLineHeight * PARAGRAPH_GAP_THRESHOLD) {
+    if (gap > medianLineHeight * PARAGRAPH_GAP_THRESHOLD) {
       paragraphs.push(currentLines);
       currentLines = [line];
     } else {
@@ -292,29 +307,27 @@ function groupLinesIntoParagraphs(lines: OCRLine[]): OCRLine[][] {
   return paragraphs;
 }
 
-/**
- * Heuristic to check if two items are on the same line.
- * They are considered on same line if their vertical centers are close,
- * or if they have significant vertical overlap.
- */
-function isInSameLine(item1: OCRItem, item2: OCRItem): boolean {
-  const box1 = item1.boundingBox;
-  const box2 = item2.boundingBox;
+interface LineGroup {
+  items: OCRItem[];
+  minY: number;
+  maxY: number;
+}
 
-  const center1 = box1.y + box1.height / 2;
-  const center2 = box2.y + box2.height / 2;
+function fitsInLineGroup(item: OCRItem, group: LineGroup): boolean {
+  const box = item.boundingBox;
+  const itemCenter = box.y + box.height / 2;
+  const groupCenter = (group.minY + group.maxY) / 2;
+  const groupHeight = group.maxY - group.minY;
+  const maxH = Math.max(groupHeight, box.height);
 
-  // If centers are within threshold of the larger height, likely same line
-  const maxH = Math.max(box1.height, box2.height);
-  if (Math.abs(center1 - center2) < maxH * LINE_CENTER_THRESHOLD) {
+  if (Math.abs(itemCenter - groupCenter) < maxH * LINE_CENTER_THRESHOLD) {
     return true;
   }
 
-  // Or if vertical overlap is > threshold of the smaller height
-  const overlapTop = Math.max(box1.y, box2.y);
-  const overlapBottom = Math.min(box1.y + box1.height, box2.y + box2.height);
+  const overlapTop = Math.max(group.minY, box.y);
+  const overlapBottom = Math.min(group.maxY, box.y + box.height);
   const overlap = Math.max(0, overlapBottom - overlapTop);
-  const minH = Math.min(box1.height, box2.height);
+  const minH = Math.min(groupHeight, box.height);
 
   return overlap > minH * LINE_OVERLAP_THRESHOLD;
 }

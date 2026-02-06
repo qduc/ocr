@@ -1,4 +1,5 @@
 import type { OCRParagraphRegion, OCRWriteBackLineRegion } from './paragraph-grouping';
+import { getMedian } from './math-utils';
 
 export interface WriteBackOptions {
   fontSizeFactor?: number; // scale factor for font size relative to box height (fallback if original size cannot be detected)
@@ -93,11 +94,12 @@ export function renderTranslationToImage(
 
     if (sw <= 0 || sh <= 0) continue;
 
+    // Sample BEFORE filling so we read original pixels
+    const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
+
     if (!usingInpaint) {
-      // Clear original text with solid fill as fallback path.
-      const fallbackBg = sampleBackgroundColor(ctx, sx, sy, sw, sh);
       ctx.globalAlpha = fillOpacity;
-      ctx.fillStyle = fallbackBg;
+      ctx.fillStyle = bgColor;
       ctx.fillRect(sx, sy, sw, sh);
       ctx.globalAlpha = 1.0;
     }
@@ -119,7 +121,6 @@ export function renderTranslationToImage(
     );
     const cx = region.scaledContainerBox.x;
     const cw = region.scaledContainerBox.width;
-    const bgColor = sampleBackgroundColor(ctx, sx, sy, sw, sh);
     const textColor = getContrastColor(bgColor);
     const textDirection = inferTextDirection(region.translatedText);
     ctx.fillStyle = textColor;
@@ -230,9 +231,6 @@ function fitTextToBox(
   const minMetrics = getLineMetrics(ctx, minFontSize, lineSpacing);
   const minHeight = getTextBlockHeight(minLines.length, minMetrics);
   let overflow = minHeight > maxHeight;
-  if (minHeight > maxHeight && minFontSize === low) {
-    // Already set to best possible
-  }
 
   // Binary search for the largest font size that fits
   for (let i = 0; i < 10; i++) {
@@ -257,12 +255,13 @@ function fitTextToBox(
 
   const fittedFontSize = Math.floor(bestFontSize);
   ctx.font = `${fittedFontSize}px ${fontFamily}`;
+  const fittedLines = wrapText(ctx, text, maxWidth, ctx.font);
   const fittedMetrics = getLineMetrics(ctx, fittedFontSize, lineSpacing);
-  const totalHeight = getTextBlockHeight(bestLines.length, fittedMetrics);
-  const maxLineWidth = bestLines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+  const totalHeight = getTextBlockHeight(fittedLines.length, fittedMetrics);
+  const maxLineWidth = fittedLines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
   overflow = overflow || maxLineWidth > maxWidth || totalHeight > maxHeight;
 
-  return { fontSize: fittedFontSize, lines: bestLines, overflow };
+  return { fontSize: fittedFontSize, lines: fittedLines, overflow };
 }
 
 function inferTextAlign(
@@ -447,24 +446,19 @@ function tryInpaintWithOpenCv(
   }
 }
 
-function getMedian(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 !== 0) {
-    return sorted[mid]!;
-  }
-  // even length: average middle two (assert non-undefined)
-  return (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
 function sampleBackgroundColor(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): string {
-  // Sample a few points around the box to guess background
   try {
+    const margin = Math.max(2, Math.min(w, h) * 0.05);
     const samples: [number, number, number][] = [];
     const points: [number, number][] = [
-      [x, y], [x + w, y], [x, y + h], [x + w, y + h],
-      [x + w / 2, y], [x + w / 2, y + h], [x, y + h / 2], [x + w, y + h / 2]
+      [x - margin, y - margin],
+      [x + w + margin, y - margin],
+      [x - margin, y + h + margin],
+      [x + w + margin, y + h + margin],
+      [x + w / 2, y - margin],
+      [x + w / 2, y + h + margin],
+      [x - margin, y + h / 2],
+      [x + w + margin, y + h / 2],
     ];
 
     for (const [px, py] of points) {
@@ -474,11 +468,11 @@ function sampleBackgroundColor(ctx: CanvasRenderingContext2D, x: number, y: numb
       samples.push([data[0] ?? 0, data[1] ?? 0, data[2] ?? 0]);
     }
 
-    const avgR = Math.round(samples.reduce((sum, s) => sum + s[0], 0) / samples.length);
-    const avgG = Math.round(samples.reduce((sum, s) => sum + s[1], 0) / samples.length);
-    const avgB = Math.round(samples.reduce((sum, s) => sum + s[2], 0) / samples.length);
+    const medianR = Math.round(getMedian(samples.map(s => s[0])));
+    const medianG = Math.round(getMedian(samples.map(s => s[1])));
+    const medianB = Math.round(getMedian(samples.map(s => s[2])));
 
-    return `rgb(${avgR}, ${avgG}, ${avgB})`;
+    return `rgb(${medianR}, ${medianG}, ${medianB})`;
   } catch (e) {
     return 'white';
   }
