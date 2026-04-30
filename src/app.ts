@@ -12,12 +12,9 @@ import {
 import { OCRError } from '@/types/ocr-errors';
 import type { OCRResult } from '@/types/ocr-engine';
 import { ENGINE_CONFIGS } from '@/types/ocr-models';
-import { buildParagraphTextForTranslation } from '@/utils/paragraph-grouping';
-import type { ITextTranslator } from '@/types/translation';
 import { getAppTemplate } from '@/app-template';
 import { getAppElements } from '@/app-elements';
 import { drawOcrBoxes } from '@/overlay-renderer';
-import { createTranslationController } from '@/translation-controller';
 import { createEngineUiController } from '@/engine-ui';
 import { createImageSourceController } from '@/image-sources';
 
@@ -29,7 +26,6 @@ export interface AppOptions {
   imageProcessor?: ImageProcessor;
   engineFactory?: EngineFactory;
   ocrManager?: OCRManager;
-  createTranslator?: () => Promise<ITextTranslator>;
   registerEngines?: (
     factory: EngineFactory,
     setStage: (stage: Stage, message: string, progress?: number) => void
@@ -56,18 +52,6 @@ export interface AppInstance {
     imagePreviewContainer: HTMLDivElement;
     urlInput: HTMLInputElement;
     loadUrlButton: HTMLButtonElement;
-    translateResult: HTMLTextAreaElement;
-    translateFrom: HTMLSelectElement;
-    translateTo: HTMLSelectElement;
-
-    translateRunButton: HTMLButtonElement;
-    translateWritebackButton: HTMLButtonElement;
-    translateCopyButton: HTMLButtonElement;
-    translateStatus: HTMLDivElement;
-    translateError: HTMLDivElement;
-    translatedImageContainer: HTMLDivElement;
-    translatedImagePreview: HTMLImageElement;
-    downloadTranslatedButton: HTMLButtonElement;
   };
   setStage: (stage: Stage, message: string, progress?: number) => void;
 }
@@ -110,19 +94,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     loadUrlButton,
     dropOverlay,
     copyOutputButton,
-    translateResult,
-    translateFrom,
-    translateTo,
-
-    translateRunButton,
-    translateWritebackButton,
-    translateCopyButton,
-    translateSwapButton,
-    translateStatus,
-    translateError,
-    translatedImageContainer,
-    translatedImagePreview,
-    downloadTranslatedButton,
     methodTabs,
     methodPanels,
   } = getAppElements(root);
@@ -171,7 +142,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       },
       onPreviewLoaded: () => undefined,
       onResetForNewSource: () => {
-        translationController.resetForNewSource();
         ocrOverlay.innerHTML = '';
         lastResult = null;
         copyOutputButton.classList.add('hidden');
@@ -226,35 +196,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     errorSuggestion.textContent = '';
   };
 
-  const translationController = createTranslationController(
-    {
-      translateResult,
-      translateFrom,
-      translateTo,
-
-      translateRunButton,
-      translateWritebackButton,
-      translateCopyButton,
-      translateSwapButton,
-      translateStatus,
-      translateError,
-      translatedImageContainer,
-      translatedImagePreview,
-      downloadTranslatedButton,
-    },
-    {
-      imageProcessor,
-      createTranslator: options.createTranslator,
-      getOcrText: () => getOcrTextForTranslation(),
-      getWritebackContext: () => ({
-        items: lastResult?.items ?? null,
-        selectedSource,
-        lastProcessedWidth,
-        lastProcessedHeight,
-      }),
-    }
-  );
-
   const setBusy = (busy: boolean): void => {
     runButton.disabled = busy;
     fileInput.disabled = busy;
@@ -271,16 +212,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
         onProgress: (status: string, progress?: number): void => {
           const percent = Math.round((progress ?? 0) * 100);
           setStage('loading', `Loading OCR engine: ${status}`, percent);
-        },
-      });
-    });
-    engineFactory.register('transformers', async () => {
-      const { TransformersEngine } = await import('@/engines/transformers-engine');
-      return new TransformersEngine({
-        webgpu: webgpuAvailable,
-        onProgress: (status: string, progress: number): void => {
-          const percent = Math.round((progress ?? 0) * 100);
-          setStage('loading', `Loading Transformers: ${status}`, percent);
         },
       });
     });
@@ -335,19 +266,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     engineUi.updateLanguageSelection(engineId);
   };
 
-  const updateTranslateFromDefault = (): void => {
-    const engineId = activeEngineId ?? selectedEngineId;
-    const ocrLanguage =
-      engineId && engineUi.supportsLanguageSelection(engineId)
-        ? engineUi.getSelectedLanguage(engineId)
-        : 'eng';
-    translationController.updateTranslateFromDefault(engineId, ocrLanguage);
-  };
-
-
-
-
-
   const populateEngines = (): void => {
     engineUi.populateEngines(getStoredEngine);
     selectedEngineId = engineSelect.value || null;
@@ -355,17 +273,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       updateEngineDetails(selectedEngineId);
       updateLanguageSelection(selectedEngineId);
     }
-  };
-
-  const initTranslationControls = (): void => {
-    translationController.init(() => {
-      const engineId = activeEngineId ?? selectedEngineId;
-      const ocrLanguage =
-        engineId && engineUi.supportsLanguageSelection(engineId)
-          ? engineUi.getSelectedLanguage(engineId)
-          : 'eng';
-      return { engineId: engineId ?? null, ocrLanguage };
-    });
   };
 
   const switchEngine = async (engineId: string, manageBusy: boolean = true): Promise<void> => {
@@ -389,7 +296,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       engineReady = true;
       activeEngineId = engineId;
       activeLanguage = engineUi.supportsLanguageSelection(engineId) ? language : null;
-      updateTranslateFromDefault();
       setStage('idle', `${engineName} ready`, 0);
     } catch (error) {
       logError(error);
@@ -412,7 +318,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       registerDefaultEngines();
     }
     populateEngines();
-    initTranslationControls();
     setStage('idle', 'Ready for upload', 0);
   }
 
@@ -424,7 +329,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     setStoredEngine(selectedEngineId);
     updateEngineDetails(selectedEngineId);
     updateLanguageSelection(selectedEngineId);
-    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
@@ -437,7 +341,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     engineReady = false;
     activeLanguage = null;
     engineUi.updateLanguageHint(selectedEngineId);
-    updateTranslateFromDefault();
     void switchEngine(selectedEngineId);
   });
 
@@ -470,11 +373,9 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       }
 
       setStage('processing', 'Processing image...', 100);
-      translatedImageContainer.classList.add('hidden');
       const imageData = await imageProcessor.sourceToImageData(selectedSource);
       const resized = imageProcessor.resize(imageData, 2000);
-      const processed =
-        selectedEngineId === 'transformers' ? resized : imageProcessor.preprocess(resized);
+      const processed = imageProcessor.preprocess(resized);
       const processStart = performance.now();
       const result = await ocrManager.run(processed);
       setProcessMetric(performance.now() - processStart);
@@ -485,7 +386,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       output.textContent =
         result.text.trim().length > 0 ? result.text : 'No text detected in this image.';
       copyOutputButton.classList.toggle('hidden', result.text.trim().length === 0);
-      translationController.onOcrUpdated();
       if (result.items && result.items.length > 0) {
         drawOcrBoxes(result.items, processed.width, processed.height, {
           mainOverlay: ocrOverlay,
@@ -576,39 +476,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
     }
   });
 
-  const getOcrTextForTranslation = (): string => {
-    let text = '';
-
-    if (lastResult?.items && lastResult.items.length > 0) {
-      text = buildParagraphTextForTranslation(lastResult.items);
-    } else {
-      text = lastResult?.text ?? output.textContent ?? '';
-    }
-
-    if (
-      !text ||
-      text === 'Upload an image to begin.' ||
-      text === 'No text detected in this image.' ||
-      text === 'Image loaded. Click extract to run OCR.'
-    ) {
-      return '';
-    }
-    return text;
-  };
-
-  // Allow clicking the translated preview to open the same image modal (enlarge)
-  translatedImagePreview.addEventListener('click', (): void => {
-    if (translatedImagePreview.src && !translatedImageContainer.classList.contains('hidden')) {
-      // Show translated image in modal. Do not draw OCR boxes here to avoid
-      // coordinate mismatches between processed and written-back image sizes.
-      modalImage.src = translatedImagePreview.src;
-      ocrOverlayModal.innerHTML = '';
-      imageModal.classList.remove('hidden');
-      document.body.style.overflow = 'hidden'; // Prevent scrolling
-    }
-  });
-
-
   const drawBoxes = (
     items: OCRResult['items'],
     originalWidth: number,
@@ -649,18 +516,6 @@ export const initApp = (options: AppOptions = {}): AppInstance => {
       imagePreviewContainer,
       urlInput,
       loadUrlButton,
-      translateResult,
-      translateFrom,
-      translateTo,
-
-      translateRunButton,
-      translateWritebackButton,
-      translateCopyButton,
-      translateStatus,
-      translateError,
-      translatedImageContainer,
-      translatedImagePreview,
-      downloadTranslatedButton,
     },
     setStage,
   };

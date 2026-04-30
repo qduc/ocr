@@ -64,16 +64,6 @@ export const getAppTemplate = (): string => `
           </div>
         </div>
 
-        <div id="translated-image-container" class="image-preview-container hidden">
-          <label class="method-label">Translated Image</label>
-          <div id="translated-preview-wrapper" class="preview-wrapper">
-            <img id="translated-image-preview" class="image-preview" src="" alt="Translated Preview" />
-          </div>
-          <div class="preview-actions">
-             <button id="download-translated" class="ghost-button" type="button">Download PNG</button>
-          </div>
-        </div>
-
         <button id="run-button" class="primary-button" type="button">Extract text</button>
       </section>
 
@@ -101,39 +91,6 @@ export const getAppTemplate = (): string => `
             </button>
           </div>
           <div id="output" class="output">Upload an image to begin.</div>
-
-          <div class="translate-section">
-            <div class="result-header translate-header">
-              <h3>Translate</h3>
-              <div class="translate-actions">
-                <button id="translate-run" class="primary-button" type="button">Translate</button>
-                <button id="translate-writeback" class="ghost-button" type="button">Write to image</button>
-              </div>
-            </div>
-            <div class="translate-controls">
-              <div class="translate-select">
-                <label for="translate-from">From</label>
-                <select id="translate-from"></select>
-              </div>
-              <button id="translate-swap" class="icon-button" type="button" title="Swap languages">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M21 5H9a4 4 0 0 0-4 4v11"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M3 19h12a4 4 0 0 0 4-4V4"></path></svg>
-              </button>
-              <div class="translate-select">
-                <label for="translate-to">To</label>
-                <select id="translate-to"></select>
-              </div>
-
-              <button id="translate-copy" class="icon-button" type="button" title="Copy translation">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
-            </div>
-            <div class="translate-field">
-              <label for="translate-result" class="method-label">Translated text</label>
-              <textarea id="translate-result" class="translate-textarea" rows="6" readonly></textarea>
-            </div>
-            <div id="translate-status" class="translate-status">Idle</div>
-            <div id="translate-error" class="translate-error hidden"></div>
-          </div>
         </section>
       </div>
       </div>

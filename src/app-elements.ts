@@ -29,19 +29,6 @@ export interface AppElements {
   loadUrlButton: HTMLButtonElement;
   dropOverlay: HTMLDivElement;
   copyOutputButton: HTMLButtonElement;
-  translateResult: HTMLTextAreaElement;
-  translateFrom: HTMLSelectElement;
-  translateTo: HTMLSelectElement;
-
-  translateRunButton: HTMLButtonElement;
-  translateWritebackButton: HTMLButtonElement;
-  translateCopyButton: HTMLButtonElement;
-  translateSwapButton: HTMLButtonElement;
-  translateStatus: HTMLDivElement;
-  translateError: HTMLDivElement;
-  translatedImageContainer: HTMLDivElement;
-  translatedImagePreview: HTMLImageElement;
-  downloadTranslatedButton: HTMLButtonElement;
   methodTabs: HTMLButtonElement[];
   methodPanels: HTMLDivElement[];
 }
@@ -77,19 +64,6 @@ export const getAppElements = (root: HTMLElement): AppElements => {
   const loadUrlButton = root.querySelector<HTMLButtonElement>('#load-url-button');
   const dropOverlay = root.querySelector<HTMLDivElement>('#drop-overlay');
   const copyOutputButton = root.querySelector<HTMLButtonElement>('#copy-output-button');
-  const translateResult = root.querySelector<HTMLTextAreaElement>('#translate-result');
-  const translateFrom = root.querySelector<HTMLSelectElement>('#translate-from');
-  const translateTo = root.querySelector<HTMLSelectElement>('#translate-to');
-
-  const translateRunButton = root.querySelector<HTMLButtonElement>('#translate-run');
-  const translateWritebackButton = root.querySelector<HTMLButtonElement>('#translate-writeback');
-  const translateCopyButton = root.querySelector<HTMLButtonElement>('#translate-copy');
-  const translateSwapButton = root.querySelector<HTMLButtonElement>('#translate-swap');
-  const translateStatus = root.querySelector<HTMLDivElement>('#translate-status');
-  const translateError = root.querySelector<HTMLDivElement>('#translate-error');
-  const translatedImageContainer = root.querySelector<HTMLDivElement>('#translated-image-container');
-  const translatedImagePreview = root.querySelector<HTMLImageElement>('#translated-image-preview');
-  const downloadTranslatedButton = root.querySelector<HTMLButtonElement>('#download-translated');
   const methodTabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.method-tab'));
   const methodPanels = Array.from(root.querySelectorAll<HTMLDivElement>('.method-panel'));
 
@@ -124,19 +98,6 @@ export const getAppElements = (root: HTMLElement): AppElements => {
     !urlInput ||
     !loadUrlButton ||
     !dropOverlay ||
-    !translateResult ||
-    !translateFrom ||
-    !translateTo ||
-
-    !translateRunButton ||
-    !translateWritebackButton ||
-    !translateCopyButton ||
-    !translateSwapButton ||
-    !translateStatus ||
-    !translateError ||
-    !translatedImageContainer ||
-    !translatedImagePreview ||
-    !downloadTranslatedButton ||
     methodTabs.length === 0 ||
     methodPanels.length === 0
   ) {
@@ -174,19 +135,6 @@ export const getAppElements = (root: HTMLElement): AppElements => {
     loadUrlButton,
     dropOverlay,
     copyOutputButton,
-    translateResult,
-    translateFrom,
-    translateTo,
-
-    translateRunButton,
-    translateWritebackButton,
-    translateCopyButton,
-    translateSwapButton,
-    translateStatus,
-    translateError,
-    translatedImageContainer,
-    translatedImagePreview,
-    downloadTranslatedButton,
     methodTabs,
     methodPanels,
   };

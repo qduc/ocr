@@ -29,14 +29,6 @@ export const ENGINE_CONFIGS: Record<string, EngineConfig> = {
       'chi_sim',
     ],
   },
-  transformers: {
-    id: 'transformers',
-    name: 'Transformers.js (TrOCR)',
-    description: 'Transformer-based OCR with higher accuracy',
-    requiresWebGPU: false,
-    estimatedModelSize: 85,
-    supportedLanguages: ['eng'],
-  },
   esearch: {
     id: 'esearch',
     name: 'eSearch-OCR (PaddleOCR)',
